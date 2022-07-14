@@ -8,6 +8,8 @@ ge_lsc17_fname = "/u/sauves/leonard_leucegene_factorized_embeddings/Data/SIGNATU
 
 # FE2D, FE17D (get training curves, interm. embeddings, 2d)
 cf = CSV.read(clinical_fname, DataFrame)
+interest_groups = [["other", "inv16", "t8_21"][Int(occursin("inv(16)", g)) + Int(occursin("t(8;21)", g)) * 2 + 1] for g  in cf[:, "WHO classification"]]
+cf.interest_groups = interest_groups
 ge_cds = CSV.read(ge_cds_fname, DataFrame)
 lsc17 = CSV.read(ge_lsc17_fname, DataFrame)
 
@@ -92,6 +94,14 @@ function generate_2D_embedding(data, params)
             loss(X_, Y_, model.net, params.wd)
         end
         Flux.update!(opt,ps, gs)
+        if e % 100 == 0
+            patient_embed = cpu(model.net[1][1].weight')
+            embedfile = "$(params.model_outdir)/model_emb_layer_1_epoch_$(e).txt"
+            embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
+            embeddf.index = index
+            embeddf.group1 = cf.interest_groups
+            CSV.write( embedfile, embeddf)
+        end 
     end 
     patient_embed = cpu(model.net[1][1].weight')
     final_acc = cor(cpu(model.net(X_)), cpu(Y_))
@@ -109,19 +119,30 @@ function l2_penalty(model)
 end
 
 loss(x, y, model, wd) = Flux.Losses.mse(model(x), y) + l2_penalty(model) * wd
-function generate_params(;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10)
+
+function params_list_to_df(pl)
+    df = DataFrame(Dict([
+    ("modelid", [p.modelid for p in pl]), 
+    ("emb_size_1", [p.emb_size_1 for p in pl]),
+    ("nepochs", [p.nepochs for p in pl])
+    ]))
+end
+
+function run(;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10)
     modelid = "FE2D_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
     model_outdir = "$(outdir)/$(modelid)"
     mkdir(model_outdir)
     params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir)
-    return params 
-end 
-params = generate_params(nepochs=1000,emb_size_1=2) 
-tr_loss, patient_embed, final_acc = generate_2D_embedding(ge_cds, params)
-lossfile = "$(params.model_outdir)/tr_loss.txt"
-lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
-CSV.write(lossfile, lossdf)
-
+    push!(model_params_list, params)
+    tr_loss, patient_embed, final_acc = generate_2D_embedding(ge_cds, params)
+    lossfile = "$(params.model_outdir)/tr_loss.txt"
+    lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
+    CSV.write(lossfile, lossdf)
+    params_df = params_list_to_df(model_params_list)
+    CSV.write("$(outdir)/model_params.txt", params_df)
+    println("final acc: $(round(final_acc, digits =3))")
+end
+run(nepochs = 12_000, emb_size_1 = 2)
 # projections 
 # LSC17, PCA17 
 

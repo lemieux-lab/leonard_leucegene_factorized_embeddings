@@ -16,3 +16,4 @@ basepath = "/u/sauves/leonard_leucegene_factorized_embeddings/"
 outpath  = "./RES/EMBEDDINGS" # our output directory
 outdir = "$(outpath)/embeddings_$(now())"
 mkdir(outdir)
+model_params_list = []
