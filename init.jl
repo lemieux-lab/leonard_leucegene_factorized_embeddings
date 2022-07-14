@@ -2,7 +2,9 @@ using Pkg
 if isfile("Project.toml") && isfile("Manifest.toml")
     Pkg.activate(".")
 end
+@time using SHA
 @time using RedefStructs 
+@time using ProgressBars
 @time using Dates
 @time using Statistics
 @time using CUDA

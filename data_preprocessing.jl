@@ -1,3 +1,6 @@
+module DataPreprocessing
+using DataFrames
+using Statistics
 struct Data
     name::String
     data::Array
@@ -20,4 +23,6 @@ function log_transf_high_variance(df::DataFrame; frac_genes = 0.1)
     cols = cols[hvg]
     new_data = Data("full", data_full, index, cols)
     return new_data
+end
+
 end
