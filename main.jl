@@ -10,11 +10,11 @@ ge_lsc17_fname = "/u/sauves/leonard_leucegene_factorized_embeddings/Data/SIGNATU
 cf = CSV.read(clinical_fname, DataFrame)
 interest_groups = [["other", "inv16", "t8_21"][Int(occursin("inv(16)", g)) + Int(occursin("t(8;21)", g)) * 2 + 1] for g  in cf[:, "WHO classification"]]
 cf.interest_groups = interest_groups
-ge_cds = CSV.read(ge_cds_fname, DataFrame)
+ge_cds_raw_data = CSV.read(ge_cds_fname, DataFrame)
 lsc17 = CSV.read(ge_lsc17_fname, DataFrame)
 
 include("data_preprocessing.jl")
-ge_cds = DataPreprocessing.log_transf_high_variance(ge_cds)
+ge_cds = DataPreprocessing.log_transf_high_variance(ge_cds_raw_data, frac_genes=1)
 index = ge_cds.factor_1
 cols = ge_cds.factor_2
 
@@ -82,7 +82,6 @@ end
 function generate_2D_embedding(data, params)    
     # init FE model
     model = generate_fe_model(length(data.factor_1), length(data.factor_2), params)
-    println(modelid)
     println(params)
     tr_loss = Array{Float32, 1}(undef, params.nepochs)
     X_, Y_ = prep_data(data)
@@ -128,7 +127,7 @@ function params_list_to_df(pl)
     ]))
 end
 
-function run(;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10)
+function run_FE(;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10)
     modelid = "FE2D_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
     model_outdir = "$(outdir)/$(modelid)"
     mkdir(model_outdir)
@@ -141,22 +140,15 @@ function run(;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1
     params_df = params_list_to_df(model_params_list)
     CSV.write("$(outdir)/model_params.txt", params_df)
     println("final acc: $(round(final_acc, digits =3))")
+    return patient_embed
 end
-run(nepochs = 12_000, emb_size_1 = 2)
+patient_embed = run_FE(nepochs = 25_000, emb_size_1 = 2)
 # projections 
 # LSC17, PCA17 
 
 # through TSNE, UMAP
 # color by Cyto group, WHO, Risk
 
-# LOGS
-# TRAINING
-    # FE2D 
-    # FE17D
-        # LOSS 
-        # EMBED1 
-        # ...
-        # EMBED_Nepochs
 # PLOTS
     # TSNE
     # UMAP
