@@ -3,6 +3,15 @@ using DataFrames
 using Statistics
 using RedefStructs
 using CSV
+using CUDA
+using Flux 
+
+struct Data
+    name::String
+    data::Array
+    factor_1::Array
+    factor_2::Array
+end
 
 function load_data(basepath::String; frac_genes=0.5)
     clinical_fname = "$(basepath)/Data/LEUCEGENE/lgn_pronostic_CF"
@@ -18,7 +27,7 @@ function load_data(basepath::String; frac_genes=0.5)
     return (cf, ge_cds, lsc17)
 end
 
-function prep_data(data::DataPreprocessing.Data; device = gpu)
+function prep_data(data; device = gpu)
     ## data preprocessing
     ### remove index columns, log transform
     n = length(data.factor_1)
@@ -42,12 +51,7 @@ function prep_data(data::DataPreprocessing.Data; device = gpu)
 end
 
 
-struct Data
-    name::String
-    data::Array
-    factor_1::Array
-    factor_2::Array
-end
+
 
 function log_transf_high_variance(df::DataFrame; frac_genes = 0.1)
     index = df[:,1]

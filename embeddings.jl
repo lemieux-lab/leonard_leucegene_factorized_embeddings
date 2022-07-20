@@ -1,5 +1,14 @@
+module FactorizedEmbedding
 using Flux 
 using Statistics
+using CUDA
+using DataFrames
+using CSV 
+using ProgressBars
+using RedefStructs
+using Dates 
+using SHA
+include("data_preprocessing.jl")
 
 @redef struct FE_model 
     net::Flux.Chain
@@ -9,29 +18,19 @@ using Statistics
     hl2::Flux.Dense
     outpl::Flux.Dense
 end 
-function prep_data(data::DataPreprocessing.Data; device = gpu)
-    ## data preprocessing
-    ### remove index columns, log transform
-    n = length(data.factor_1)
-    m = length(data.factor_2)
-    values = Array{Float32,2}(undef, (1, n * m))
-    #print(size(values))
-    factor_1_index = Array{Int32,1}(undef, max(n * m, 1))
-    factor_2_index = Array{Int32,1}(undef, max(n * m, 1))
-     # d3_index = Array{Int32,1}(undef, n * m)
-    
-    for i in 1:n
-        for j in 1:m
-            index = (i - 1) * m + j 
-            values[1, index] = data.data[i, j]
-            factor_1_index[index] = i # Int
-            factor_2_index[index] = j # Int 
-            # d3_index[index] = data.d3_index[i] # Int 
-        end
-    end
-    return (device(factor_1_index), device(factor_2_index)), device(vec(values))
-end
 
+@redef struct Params 
+    nepochs::Int64
+    tr::Float64
+    wd::Float64 
+    emb_size_1::Int64
+    emb_size_2::Int64 
+    hl1_size::Int64
+    hl2_size::Int64
+    modelid::String
+    model_outdir::String
+    insize::Int64
+end 
 function generate_fe_model(factor_1_size::Int, factor_2_size::Int, params::Params)
     emb_size_1 = params.emb_size_1
     emb_size_2 = params.emb_size_2
@@ -49,12 +48,12 @@ function generate_fe_model(factor_1_size::Int, factor_2_size::Int, params::Param
     return FE_model(net, emb_layer_1, emb_layer_2, hl1, hl2, outpl)
 end 
 
-function generate_2D_embedding(data, params; dump=true)    
+function generate_2D_embedding(data, cf, params; dump=true)    
     # init FE model
     model = generate_fe_model(length(data.factor_1), length(data.factor_2), params)
     println(params)
     tr_loss = Array{Float32, 1}(undef, params.nepochs)
-    X_, Y_ = prep_data(data)
+    X_, Y_ = DataPreprocessing.prep_data(data)
     opt = Flux.ADAM(params.tr)
     @time for e in ProgressBar(1:params.nepochs)
         ps = Flux.params(model.net)
@@ -67,7 +66,7 @@ function generate_2D_embedding(data, params; dump=true)
             patient_embed = cpu(model.net[1][1].weight')
             embedfile = "$(params.model_outdir)/model_emb_layer_1_epoch_$(e).txt"
             embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
-            embeddf.index = index
+            embeddf.index = data.factor_1
             embeddf.group1 = cf.interest_groups
             if dump
                 CSV.write( embedfile, embeddf)
@@ -102,18 +101,19 @@ function params_list_to_df(pl)
     return df
 end
 
-function run_FE(;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10, dump=true)
+function run_FE(input_data, cf, model_params_list, outdir;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10, dump=true)
     modelid = "FE2D_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
     model_outdir = "$(outdir)/$(modelid)"
     mkdir(model_outdir)
-    params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(cols))
+    params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(input_data.factor_2))
     push!(model_params_list, params)
-    tr_loss, patient_embed, final_acc = generate_2D_embedding(ge_cds, params, dump=dump)
+    tr_loss, patient_embed, final_acc = generate_2D_embedding(input_data, cf, params, dump=dump)
     lossfile = "$(params.model_outdir)/tr_loss.txt"
     lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
     CSV.write(lossfile, lossdf)
     params_df = params_list_to_df(model_params_list)
     CSV.write("$(outdir)/model_params.txt", params_df)
     println("final acc: $(round(final_acc, digits =3))")
-    return patient_embed
+    return patient_embed, final_acc
+end
 end
