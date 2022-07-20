@@ -14,7 +14,7 @@ ge_cds_raw_data = CSV.read(ge_cds_fname, DataFrame)
 lsc17 = CSV.read(ge_lsc17_fname, DataFrame)
 
 include("data_preprocessing.jl")
-ge_cds = DataPreprocessing.log_transf_high_variance(ge_cds_raw_data, frac_genes=1)
+ge_cds = DataPreprocessing.log_transf_high_variance(ge_cds_raw_data, frac_genes=0.5)
 index = ge_cds.factor_1
 cols = ge_cds.factor_2
 
@@ -133,13 +133,13 @@ function params_list_to_df(pl)
     return df
 end
 
-function run_FE(;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10)
+function run_FE(;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10, dump=true)
     modelid = "FE2D_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
     model_outdir = "$(outdir)/$(modelid)"
     mkdir(model_outdir)
     params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(cols))
     push!(model_params_list, params)
-    tr_loss, patient_embed, final_acc = generate_2D_embedding(ge_cds, params, dump=true)
+    tr_loss, patient_embed, final_acc = generate_2D_embedding(ge_cds, params, dump=dump)
     lossfile = "$(params.model_outdir)/tr_loss.txt"
     lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
     CSV.write(lossfile, lossdf)
@@ -148,32 +148,36 @@ function run_FE(;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,
     println("final acc: $(round(final_acc, digits =3))")
     return patient_embed
 end
-patient_embed = run_FE(nepochs = 12_000, emb_size_1 = 17, emb_size_2 = 15)
+patient_embed = run_FE(nepochs = 12_000, emb_size_1 = 17, emb_size_2 = 50, hl1=50, hl2=50, dump=true)
 # projections 
 # LSC17, PCA17 
-rescale(A; dims=1) = (A .- mean(A, dims=dims)) ./ max.(std(A, dims=dims), eps())
+
 @time LSC17_tsne = tsne(Matrix{Float64}(lsc17[:,2:end]);verbose =true,progress=true)
 @time FE_tsne = tsne(Matrix{Float64}(patient_embed);verbose=true,progress=true)
 @time PCA_tsne = tsne(ge_cds.data, 2, 17,1000,30.0;verbose=true,progress=true)
 @time CDS_tsne = tsne(ge_cds.data, 2, 0, 1000,30.0;verbose=true,progress=true)
 
 lsc17_tsne_df = DataFrame(Dict([("tsne_$i",LSC17_tsne[:,i]) for i in 1:size(LSC17_tsne)[2] ]))
-lsc17_tsne_df.group = cf[:,"Cytogenetic group"]
+lsc17_tsne_df.cyto_group = cf[:,"Cytogenetic group"]
+lsc17_tsne_df.interest_group = cf.interest_groups
 lsc17_tsne_df.index = index
 lsc17_tsne_df.method = map(x->"LSC17", collect(1:length(index)))
 
 FE_tsne_df = DataFrame(Dict([("tsne_$i",FE_tsne[:,i]) for i in 1:size(FE_tsne)[2] ]))
-FE_tsne_df.group = cf[:,"Cytogenetic group"]
+FE_tsne_df.cyto_group = cf[:,"Cytogenetic group"]
+FE_tsne_df.interest_group = cf.interest_groups
 FE_tsne_df.index = index
 FE_tsne_df.method = map(x->"FE", collect(1:length(index)))
 
 PCA_tsne_df = DataFrame(Dict([("tsne_$i",PCA_tsne[:,i]) for i in 1:size(PCA_tsne)[2] ]))
-PCA_tsne_df.group = cf[:,"Cytogenetic group"]
+PCA_tsne_df.cyto_group = cf[:,"Cytogenetic group"]
+PCA_tsne_df.interest_group = cf.interest_groups
 PCA_tsne_df.index = index
-PCA_tsne_df.method = map(x->"CDS", collect(1:length(index)))
+PCA_tsne_df.method = map(x->"PCA", collect(1:length(index)))
 
 CDS_tsne_df = DataFrame(Dict([("tsne_$i", CDS_tsne[:,i]) for i in 1:size(CDS_tsne)[2] ]))
-CDS_tsne_df.group = cf[:,"Cytogenetic group"]
+CDS_tsne_df.cyto_group = cf[:,"Cytogenetic group"]
+CDS_tsne_df.interest_group = cf.interest_groups
 CDS_tsne_df.index = index
 CDS_tsne_df.method = map(x->"CDS", collect(1:length(index)))
 

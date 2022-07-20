@@ -1,3 +1,4 @@
+module Init
 using Pkg
 if isfile("Project.toml") && isfile("Manifest.toml")
     Pkg.activate(".")
@@ -13,8 +14,11 @@ end
 @time using CSV
 @time using Flux
 
-basepath = "/u/sauves/leonard_leucegene_factorized_embeddings/"
-outpath  = "./RES/EMBEDDINGS" # our output directory
-outdir = "$(outpath)/embeddings_$(now())"
-mkdir(outdir)
-model_params_list = []
+function set_dirs(basepath)
+    outpath  = "./RES/EMBEDDINGS" # our output directory
+    outdir = "$(outpath)/embeddings_$(now())"
+    mkdir(outdir)
+    model_params_list = []
+    return outpath, outdir, model_params_list
+end
+end 
