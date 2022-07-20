@@ -19,6 +19,7 @@ function set_dirs(basepath)
     outdir = "$(outpath)/embeddings_$(now())"
     mkdir(outdir)
     model_params_list = []
-    return outpath, outdir, model_params_list
+    accuracy_list = []
+    return outpath, outdir, model_params_list, accuracy_list
 end
 end 

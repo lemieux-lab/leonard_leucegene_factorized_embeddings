@@ -2,8 +2,12 @@ module Utils
 using CSV
 using TSne
 using DataFrames 
+function dump_accuracy(model_params_list, accuracy_list, outdir)
+    acc_df = Utils.DataFrame(Dict([("modelid", [p.modelid for p in model_params_list]), ("pearson_corr", accuracy_list)]))
+    CSV.write("$(outdir)/model_accuracies.txt", acc_df)
+end 
 
-function tsne_benchmark(ge_cds, lsc17, patient_embed, cf, outdir)     
+function tsne_benchmark(ge_cds, lsc17, patient_embed, cf, outdir, mid)     
     index = ge_cds.factor_1
     @time LSC17_tsne = tsne(Matrix{Float64}(lsc17[:,2:end]);verbose =true,progress=true)
     @time FE_tsne = tsne(Matrix{Float64}(patient_embed);verbose=true,progress=true)
@@ -35,7 +39,7 @@ function tsne_benchmark(ge_cds, lsc17, patient_embed, cf, outdir)
     CDS_tsne_df.method = map(x->"CDS", collect(1:length(index)))
 
     CSV.write("$(outdir)/lsc17_tsne_df.txt", lsc17_tsne_df)
-    CSV.write("$(outdir)/FE_tsne_df.txt", FE_tsne_df)
+    CSV.write("$(outdir)/$(mid)_FE_tsne_df.txt", FE_tsne_df)
     CSV.write("$(outdir)/PCA_tsne_df.txt", PCA_tsne_df)
     CSV.write("$(outdir)/CDS_tsne_df.txt", CDS_tsne_df)
 end
