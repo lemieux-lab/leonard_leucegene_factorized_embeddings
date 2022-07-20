@@ -7,7 +7,7 @@ dirs = list.dirs(basepath, recursive = F)
 wd = dirs[length(dirs)]
 
 params_file =read.csv(paste(wd, "model_params.txt", sep = "/"))
-id = 3
+id = 1
 mid = params_file$modelid[id]
 nepochs = params_file$nepochs[id]
 

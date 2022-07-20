@@ -6,6 +6,7 @@ end
 @time using RedefStructs 
 @time using ProgressBars
 @time using Dates
+@time using TSne
 @time using Statistics
 @time using CUDA
 @time using DataFrames
