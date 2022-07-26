@@ -102,7 +102,7 @@ function params_list_to_df(pl)
 end
 
 function run_FE(input_data, cf, model_params_list, outdir;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10, dump=true)
-    modelid = "FE2D_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
+    modelid = "FE_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
     model_outdir = "$(outdir)/$(modelid)"
     mkdir(model_outdir)
     params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(input_data.factor_2))

@@ -5,13 +5,24 @@ using RedefStructs
 using CSV
 using CUDA
 using Flux 
+using RedefStructs
 
-struct Data
+@redef struct Data
     name::String
     data::Array
     factor_1::Array
     factor_2::Array
 end
+
+@redef struct FoldData
+    train::Data
+    test::Data
+end
+
+function split_train_test(data::Data)
+    df = data.data
+
+end 
 
 function load_data(basepath::String; frac_genes=0.5)
     clinical_fname = "$(basepath)/Data/LEUCEGENE/lgn_pronostic_CF"
@@ -23,8 +34,9 @@ function load_data(basepath::String; frac_genes=0.5)
     cf.interest_groups = interest_groups
     ge_cds_raw_data = CSV.read(ge_cds_fname, DataFrame)
     lsc17 = CSV.read(ge_lsc17_fname, DataFrame)
-    ge_cds = DataPreprocessing.log_transf_high_variance(ge_cds_raw_data, frac_genes=frac_genes)
-    return (cf, ge_cds, lsc17)
+    ge_cds_all = DataPreprocessing.log_transf_high_variance(ge_cds_raw_data, frac_genes=frac_genes)
+    ge_cds_split = split_train_test(ge_cds_all)
+    return (cf, ge_cds_split, ge_cds_all, lsc17)
 end
 
 function prep_data(data; device = gpu)

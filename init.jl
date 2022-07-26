@@ -4,6 +4,7 @@ if isfile("Project.toml") && isfile("Manifest.toml")
     Pkg.activate(".")
 end
 @time using SHA
+@time using Random
 @time using RedefStructs 
 @time using ProgressBars
 @time using Dates
