@@ -48,7 +48,7 @@ function generate_fe_model(factor_1_size::Int, factor_2_size::Int, params::Param
     return FE_model(net, emb_layer_1, emb_layer_2, hl1, hl2, outpl)
 end 
 
-function generate_2D_embedding(data, cf, params; dump=true)    
+function generate_embedding(data, cf, params; dump=true)    
     # init FE model
     model = generate_fe_model(length(data.factor_1), length(data.factor_2), params)
     println(params)
@@ -75,7 +75,7 @@ function generate_2D_embedding(data, cf, params; dump=true)
     end 
     patient_embed = cpu(model.net[1][1].weight')
     final_acc = cor(cpu(model.net(X_)), cpu(Y_))
-    return tr_loss, patient_embed, final_acc
+    return tr_loss, patient_embed, model, final_acc
 end 
 
 function l2_penalty(model)
@@ -107,13 +107,13 @@ function run_FE(input_data, cf, model_params_list, outdir;nepochs=10_000, tr=1e-
     mkdir(model_outdir)
     params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(input_data.factor_2))
     push!(model_params_list, params)
-    tr_loss, patient_embed, final_acc = generate_2D_embedding(input_data, cf, params, dump=dump)
+    tr_loss, patient_embed, model, final_acc = generate_embedding(input_data, cf, params, dump=dump)
     lossfile = "$(params.model_outdir)/tr_loss.txt"
     lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
     CSV.write(lossfile, lossdf)
     params_df = params_list_to_df(model_params_list)
     CSV.write("$(outdir)/model_params.txt", params_df)
     println("final acc: $(round(final_acc, digits =3))")
-    return patient_embed, final_acc
+    return patient_embed, model, final_acc
 end
 end
