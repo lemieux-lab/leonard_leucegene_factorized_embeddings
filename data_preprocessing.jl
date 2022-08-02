@@ -14,7 +14,16 @@ using RedefStructs
     factor_2::Array
 end
 
-
+function params_list_to_df(pl)
+    df = DataFrame(Dict([
+    ("modelid", [p.modelid for p in pl]), 
+    ("emb_size_1", [p.emb_size_1 for p in pl]),
+    ("emb_size_2", [p.emb_size_2 for p in pl]),
+    ("nepochs", [p.nepochs for p in pl]),
+    ("insize", [p.insize for p in pl])
+    ]))
+    return df
+end
 
 function load_data(basepath::String; frac_genes=0.5)
     clinical_fname = "$(basepath)/Data/LEUCEGENE/lgn_pronostic_CF"

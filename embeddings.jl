@@ -90,16 +90,7 @@ end
 
 loss(x, y, model, wd) = Flux.Losses.mse(model(x), y) + l2_penalty(model) * wd
 
-function params_list_to_df(pl)
-    df = DataFrame(Dict([
-    ("modelid", [p.modelid for p in pl]), 
-    ("emb_size_1", [p.emb_size_1 for p in pl]),
-    ("emb_size_2", [p.emb_size_2 for p in pl]),
-    ("nepochs", [p.nepochs for p in pl]),
-    ("insize", [p.insize for p in pl])
-    ]))
-    return df
-end
+
 
 function run_FE(input_data, cf, model_params_list, outdir;nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10, dump=true)
     modelid = "FE_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
@@ -111,9 +102,9 @@ function run_FE(input_data, cf, model_params_list, outdir;nepochs=10_000, tr=1e-
     lossfile = "$(params.model_outdir)/tr_loss.txt"
     lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
     CSV.write(lossfile, lossdf)
-    params_df = params_list_to_df(model_params_list)
+    params_df = DataPreprocessing.params_list_to_df(model_params_list)
     CSV.write("$(outdir)/model_params.txt", params_df)
     println("final acc: $(round(final_acc, digits =3))")
-    return patient_embed, model, final_acc
+    return patient_embed, model, final_acc, tr_loss
 end
 end

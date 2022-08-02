@@ -8,6 +8,14 @@ cf_df, ge_cds_all, lsc17_df  = FactorizedEmbedding.DataPreprocessing.load_data(b
 
 using RedefStructs
 using Random
+using Flux
+using CUDA
+using Dates
+using SHA
+using ProgressBars
+using Statistics
+using DataFrames
+using CSV 
 
 @redef struct FoldData
     train::FactorizedEmbedding.DataPreprocessing.Data
@@ -42,22 +50,6 @@ function split_train_test(data::FactorizedEmbedding.DataPreprocessing.Data, cf_d
     fd = FoldData(train, tr_ids, test, tst_ids)
     return fd
 end
-
-fd = split_train_test(ge_cds_all, cf_df)
-
-fd.test_ids
-## train with rest
-patient_embed_mat, model, final_acc = FactorizedEmbedding.run_FE(fd.train, cf_df[fd.train_ids, :], model_params_list, outdir; 
-        nepochs = 100, 
-        emb_size_1 = 17, 
-        emb_size_2 = 50, 
-        hl1=50, 
-        hl2=50, 
-        dump=true
-    )    
-using Flux
-using CUDA
-
 function replace_layer(net::FactorizedEmbedding.FE_model, new_f1_size::Int)
     new_emb_1 = Flux.Embedding(new_f1_size, size(net.embed_1.weight)[1])
     new_net = gpu(Flux.Chain(
@@ -66,8 +58,20 @@ function replace_layer(net::FactorizedEmbedding.FE_model, new_f1_size::Int)
         vec))
     return FactorizedEmbedding.FE_model(new_net, new_emb_1, net.embed_2, net.hl1, net.hl2, net.outpl)
 end 
-using Dates
-using SHA
+
+fd = split_train_test(ge_cds_all, cf_df)
+
+fd.test_ids
+## train with rest
+patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(fd.train, cf_df[fd.train_ids, :], model_params_list, outdir; 
+        nepochs = 12_000, 
+        emb_size_1 = 17, 
+        emb_size_2 = 50, 
+        hl1=50, 
+        hl2=50, 
+        dump=true
+    )    
+
 inference_mdl = replace_layer(model, 10)
 modelid = "FE_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
 model_outdir = "$(outdir)/$(modelid)"
@@ -75,39 +79,46 @@ mkdir(model_outdir)
 params = FactorizedEmbedding.Params(1000, 1e-3, 1e-3, 17, 50, 50, 50, modelid, model_outdir, length(fd.test.factor_2))    
 push!(model_params_list, params)
 
+mid = model_params_list[end].modelid
+Utils.tsne_benchmark(ge_cds_all, lsc17_df, patient_embed_mat, cf_df, outdir, mid)
+run(`Rscript --vanilla  plotting_functions_tsne.R $outdir $mid`)
+Utils.dump_accuracy(model_params_list, accuracy_list, outdir)
+
 # actual inference 
+## infer position of 10 samples
 X_, Y_ = FactorizedEmbedding.DataPreprocessing.prep_data(fd.test)
 opt = Flux.ADAM(params.tr)
-tr_loss = Array{Float32, 1}(undef, params.nepochs)
-using ProgressBars
+nepochs_tst = 10_000
+tst_loss = Array{Float32, 1}(undef, nepochs_tst)
+
 loss(x, y, model, wd) = Flux.Losses.mse(model(x), y) + FactorizedEmbedding.l2_penalty(model) * wd
-
-loss(X_, Y_, inference_mdl.net, params.wd)
-ps = Flux.params(inference_mdl.net)
-gs = gradient(loss(X_, Y_, inference_mdl.net, params.wd), ps)
-
-@time for e in ProgressBar(1:params.nepochs)
-    ps = Flux.params(inference_mdl.net)[1]
-    tr_loss[e] = loss(X_, Y_, inference_mdl.net, params.wd)
+println("tr acc $(final_acc), loss: $(tr_loss[end])")
+for e in ProgressBar(1:nepochs_tst)
+    ps = Flux.params(inference_mdl.net[1])
     gs = gradient(ps) do 
-        loss(X_, Y_, inference_mdl.net, params.wd)
-    end
-    Flux.update!(opt,ps, gs)
+            loss(X_, Y_, inference_mdl.net, params.wd)
+        end 
+    Flux.update!(opt, ps , gs)
+    tst_loss[e] = loss(X_, Y_, inference_mdl.net, params.wd)
+    if e % 100 == 0
+        patient_embed = cpu(inference_mdl.net[1][1].weight')
+        embedfile = "$(params.model_outdir)/model_emb_layer_1_epoch_$(e).txt"
+        embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
+        embeddf.index = fd.test.factor_1
+        embeddf.group1 = cf_df[fd.test_ids,:].interest_groups
+        CSV.write( embedfile, embeddf)
+       
+    end 
 end 
+tst_acc = cor(cpu(inference_mdl.net(X_)), cpu(Y_))
+println("tst acc $(tst_acc), tst_loss: $(tst_loss[end])")
 
 lossfile = "$(params.model_outdir)/tr_loss.txt"
 lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
 CSV.write(lossfile, lossdf)
 params_df = params_list_to_df(model_params_list)
 CSV.write("$(outdir)/model_params.txt", params_df)
+
 println("final acc: $(round(final_acc, digits =3))")
 
-function infer(model::FactorizedEmbedding.FE_model, cf::Utils.DataFrame)
-
-end
-## infer position of 10 samples
-# infer(model, fd.test, cf_df[fd.test_ids, :])
-
-
-## plot 2d tsne of training set 
-## plot 2d tsne of training + test set 
+push!(accuracy_list, final_acc)
