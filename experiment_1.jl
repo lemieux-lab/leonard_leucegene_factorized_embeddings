@@ -1,12 +1,13 @@
 # init
 include("init.jl")
-basepath = "/u/sauves/leonard_leucegene_factorized_embeddings/"
+# basepath = "/u/sauves/leonard_leucegene_factorized_embeddings/"
+basepath = "."
 outpath, outdir, model_params_list, accuracy_list = Init.set_dirs(basepath)
     # set working and run direct
 
 include("embeddings.jl")
 include("utils.jl")
-cf_df, ge_cds_split, ge_cds_all, lsc17_df = FactorizedEmbedding.DataPreprocessing.load_data(basepath, frac_genes = 0.5) 
+cf_df, ge_cds_all, lsc17_df = FactorizedEmbedding.DataPreprocessing.load_data(basepath, frac_genes = 0.5) 
 index = ge_cds_all.factor_1
 cols = ge_cds_all.factor_2
 
