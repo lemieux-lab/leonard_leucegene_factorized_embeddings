@@ -10,10 +10,10 @@ args = commandArgs(trailingOnly = TRUE)
 wd = args[1]
 mid = args[2]
 
-CDS_tsne = read.csv(paste(wd,"CDS_tsne_df.txt", sep = "/"))
+CDS_tsne = read.csv(paste(wd, paste(mid, "_CDS_tsne_df.txt", sep = ""), sep = "/"))
 FE_tsne = read.csv(paste(wd, paste(mid, "_FE_tsne_df.txt", sep = ""), sep = "/"))
-LSC17_tsne = read.csv(paste(wd, "lsc17_tsne_df.txt", sep = "/"))
-PCA_tsne = read.csv(paste(wd, "PCA_tsne_df.txt", sep = "/"))
+LSC17_tsne = read.csv(paste(wd, paste(mid, "_lsc17_tsne_df.txt", sep = ""), sep = "/"))
+PCA_tsne = read.csv(paste(wd, paste(mid, "_PCA_tsne_df.txt", sep = ""), sep = "/"))
 
 merged = CDS_tsne %>% rbind(LSC17_tsne) %>% rbind(PCA_tsne) %>% rbind(FE_tsne)   
 p = ggplot(merged, aes(x = tsne_1, y = tsne_2, col = interest_group)) + geom_point() + coord_fixed() + 

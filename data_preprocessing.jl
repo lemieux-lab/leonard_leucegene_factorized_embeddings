@@ -6,12 +6,35 @@ using CSV
 using CUDA
 using Flux 
 using RedefStructs
+using Random
+
 
 @redef struct Data
     name::String
     data::Array
     factor_1::Array
     factor_2::Array
+end
+
+@redef struct FoldData
+    train::Data
+    train_ids::Array
+    test::Data
+    test_ids::Array
+end
+
+function split_train_test(data, cf_df::DataFrame)
+    ## extract 10 samples from training set.
+    inv16 = findall(x-> x == "inv16", cf_df.interest_groups)
+    t8_21 = findall(x-> x == "t8_21", cf_df.interest_groups)
+    tst_ids = shuffle(vcat([inv16 , t8_21]...))[1:10]
+    tr_ids = setdiff(collect(1:size(data.data)[1]), tst_ids)
+
+    train = Data("train", data.data[tr_ids,:], data.factor_1[tr_ids], data.factor_2)
+    test = Data("test", data.data[tst_ids,:], data.factor_1[tst_ids], data.factor_2)
+
+    fd = FoldData(train, tr_ids, test, tst_ids)
+    return fd
 end
 
 function params_list_to_df(pl)

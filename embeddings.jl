@@ -30,6 +30,7 @@ end
     modelid::String
     model_outdir::String
     insize::Int64
+    set::String
 end 
 function generate_fe_model(factor_1_size::Int, factor_2_size::Int, params::Params)
     emb_size_1 = params.emb_size_1
@@ -96,7 +97,7 @@ function run_FE(input_data, cf, model_params_list, outdir;nepochs=10_000, tr=1e-
     modelid = "FE_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
     model_outdir = "$(outdir)/$(modelid)"
     mkdir(model_outdir)
-    params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(input_data.factor_2))
+    params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(input_data.factor_2), "train")
     push!(model_params_list, params)
     tr_loss, patient_embed, model, final_acc = generate_embedding(input_data, cf, params, dump=dump)
     lossfile = "$(params.model_outdir)/tr_loss.txt"
@@ -107,4 +108,14 @@ function run_FE(input_data, cf, model_params_list, outdir;nepochs=10_000, tr=1e-
     println("final acc: $(round(final_acc, digits =3))")
     return patient_embed, model, final_acc, tr_loss
 end
+function replace_layer(net::FE_model, new_f1_size::Int)
+    new_emb_1 = Flux.Embedding(new_f1_size, size(net.embed_1.weight)[1])
+    new_net = gpu(Flux.Chain(
+        Flux.Parallel(vcat, new_emb_1, net.embed_2),
+        net.hl1, net.hl2, net.outpl,
+        vec))
+    return FE_model(new_net, new_emb_1, net.embed_2, net.hl1, net.hl2, net.outpl)
+end
+
+
 end
