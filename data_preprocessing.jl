@@ -23,11 +23,13 @@ end
     test_ids::Array
 end
 
-function split_train_test(data, cf_df::DataFrame)
-    ## extract 10 samples from training set.
-    inv16 = findall(x-> x == "inv16", cf_df.interest_groups)
+function split_train_test(data, cf_df::DataFrame; n::Int=10)
+    ## extract n samples from training set.
+    inv16 = findall(x-> x == "inv_16", cf_df.interest_groups)
     t8_21 = findall(x-> x == "t8_21", cf_df.interest_groups)
-    tst_ids = shuffle(vcat([inv16 , t8_21]...))[1:10]
+    mll_t = findall(x-> x == "MLL_t", cf_df.interest_groups)
+    interest = shuffle(vcat([inv16 , t8_21, mll_t]...))
+    tst_ids = interest[1:(min(n, length(interest)))]
     tr_ids = setdiff(collect(1:size(data.data)[1]), tst_ids)
 
     train = Data("train", data.data[tr_ids,:], data.factor_1[tr_ids], data.factor_2)
@@ -48,13 +50,28 @@ function params_list_to_df(pl)
     return df
 end
 
+function get_interest_groups(target)
+    if  occursin( "inv(16)", target)
+        return "inv_16"
+    
+    elseif occursin("t(8;21)", target)
+        return "t8_21"
+    
+    elseif occursin("MLL", target)
+        return "MLL_t"
+    
+    else return "other"
+
+    end
+end
+
 function load_data(basepath::String; frac_genes=0.5)
     clinical_fname = "$(basepath)/Data/LEUCEGENE/lgn_pronostic_CF"
     ge_cds_fname = "$(basepath)/Data/LEUCEGENE/lgn_pronostic_GE_CDS_TPM.csv"
     ge_lsc17_fname = "$(basepath)/Data/SIGNATURES/LSC17_lgn_pronostic_expressions.csv"
 
     cf = CSV.read(clinical_fname, DataFrame)
-    interest_groups = [["other", "inv16", "t8_21"][Int(occursin("inv(16)", g)) + Int(occursin("t(8;21)", g)) * 2 + 1] for g  in cf[:, "WHO classification"]]
+    interest_groups = [get_interest_groups(g) for g  in cf[:, "WHO classification"]]
     cf.interest_groups = interest_groups
     ge_cds_raw_data = CSV.read(ge_cds_fname, DataFrame)
     lsc17 = CSV.read(ge_lsc17_fname, DataFrame)

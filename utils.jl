@@ -9,8 +9,8 @@ end
 
 function tsne_benchmark(ids, ge_cds, lsc17, patient_embed, cf, outdir, mid)     
     index = ge_cds.factor_1[ids]
-    @time LSC17_tsne = tsne(Matrix{Float64}(lsc17[ids,2:end]);verbose =true,progress=true)
-    @time FE_tsne = tsne(Matrix{Float64}(patient_embed);verbose=true,progress=true)
+    @time LSC17_tsne = tsne(Matrix{Float64}(lsc17[ids,2:end]),2, 0, 1000, 30.0;verbose =true,progress=true)
+    @time FE_tsne = tsne(Matrix{Float64}(patient_embed), 2, 0, 1000, 30.0;verbose=true,progress=true)
     @time PCA_tsne = tsne(ge_cds.data[ids,:], 2, 17,1000,30.0;verbose=true,progress=true)
     @time CDS_tsne = tsne(ge_cds.data[ids,:], 2, 0, 1000,30.0;verbose=true,progress=true)
 
