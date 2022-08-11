@@ -38,8 +38,9 @@ fd.test_ids
 ## train with rest
 patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(fd.train, cf_df[fd.train_ids, :], model_params_list, outdir; 
         nepochs = 12_000, 
-        emb_size_1 = 17, 
-        emb_size_2 = 17, 
+        wd = 1e-3,
+        emb_size_1 = 2, 
+        emb_size_2 = 50, 
         hl1=50, 
         hl2=50, 
         dump=true

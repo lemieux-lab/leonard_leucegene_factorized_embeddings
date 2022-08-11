@@ -44,8 +44,13 @@ function params_list_to_df(pl)
     ("modelid", [p.modelid for p in pl]), 
     ("emb_size_1", [p.emb_size_1 for p in pl]),
     ("emb_size_2", [p.emb_size_2 for p in pl]),
+    ("tr", [p.tr for p in pl]),
+    ("wd", [p.wd for p in pl]),
+    ("hl1_size", [p.hl1_size for p in pl]),
+    ("hl2_size", [p.hl2_size for p in pl]),
     ("nepochs", [p.nepochs for p in pl]),
-    ("insize", [p.insize for p in pl])
+    ("insize", [p.insize for p in pl]),
+    ("set", [p.set for p in pl])
     ]))
     return df
 end

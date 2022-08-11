@@ -4,12 +4,13 @@ library(tidyr)
 
 basepath = "/u/sauves/leonard_leucegene_factorized_embeddings/RES/EMBEDDINGS"
 dirs = list.dirs(basepath, recursive = F)
-wd = dirs[length(dirs)]
+
+args = commandArgs(trailingOnly = TRUE)
+wd = args[1]
+mid = args[2]
 
 params_file =read.csv(paste(wd, "model_params.txt", sep = "/"))
-id = 17
-mid = params_file$modelid[id]
-nepochs = params_file$nepochs[id]
+nepochs = (params_file %>% filter(modelid == mid))$nepochs
 
 tr_losses = read.csv(paste(wd, mid, "tr_loss.txt", sep = "/"))
 ggplot(tr_losses, aes(x = epoch, y = loss)) + geom_line()
