@@ -65,7 +65,7 @@ function generate_embedding(data, cf, params; dump=true)
         Flux.update!(opt,ps, gs)
         if e % 100 == 0
             patient_embed = cpu(model.net[1][1].weight')
-            embedfile = "$(params.model_outdir)/model_emb_layer_1_epoch_$(e).txt"
+            embedfile = "$(params.model_outdir)/training_model_emb_layer_1_epoch_$(e).txt"
             embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
             embeddf.index = data.factor_1
             embeddf.group1 = cf.interest_groups
