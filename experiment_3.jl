@@ -36,11 +36,11 @@ cf_df, ge_cds_all, lsc17_df  = FactorizedEmbedding.DataPreprocessing.load_data(b
 
 patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(ge_cds_all, cf_df, model_params_list, outdir; 
         nepochs = 12_000, 
-        wd = 1e-10,
+        wd = 1e-9,
         emb_size_1 = 2, 
-        emb_size_2 = 2, 
-        hl1=10, 
-        hl2=10, 
+        emb_size_2 = 50, 
+        hl1=50, 
+        hl2=50, 
         dump=true
         )    
 println("tr acc $(final_acc), loss: $(tr_loss[end])")
@@ -116,7 +116,7 @@ function run_inference(model::FactorizedEmbedding.FE_model, tr_params::Factorize
     return embeddf, inference_mdl, tst_loss, tst_acc
 end 
 
-embeddf, inference_mdl, tst_loss, tst_acc = run_inference(model, tr_params, ge_cds_all, cf_df; nepochs_tst=tr_params.nepochs, n_samples = 300)
+embeddf, inference_mdl, tst_loss, tst_acc = run_inference(model, tr_params, ge_cds_all, cf_df; nepochs_tst=tr_params.nepochs)
 
 CSV.write("$(outdir)/$(tr_params.modelid)/tst_loss.txt", DataFrame(Dict([("loss", tst_loss), ("epoch", 1:length(tst_loss))])))
 params_df = FactorizedEmbedding.DataPreprocessing.params_list_to_df(model_params_list)
