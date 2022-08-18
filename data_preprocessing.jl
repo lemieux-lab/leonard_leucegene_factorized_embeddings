@@ -50,6 +50,7 @@ function params_list_to_df(pl)
     ("hl2_size", [p.hl2_size for p in pl]),
     ("nepochs", [p.nepochs for p in pl]),
     ("insize", [p.insize for p in pl]),
+    ("nsamples", [p.nsamples for p in pl]),
     ("set", [p.set for p in pl])
     ]))
     return df

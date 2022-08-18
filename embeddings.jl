@@ -30,6 +30,7 @@ end
     modelid::String
     model_outdir::String
     insize::Int64
+    nsamples::Int64
     set::String
 end 
 function generate_fe_model(factor_1_size::Int, factor_2_size::Int, params::Params)
@@ -58,9 +59,9 @@ function generate_embedding(data, cf, params; dump=true)
     opt = Flux.ADAM(params.tr)
     @time for e in ProgressBar(1:params.nepochs)
         ps = Flux.params(model.net)
-        tr_loss[e] = loss(X_, Y_, model.net, params.wd)
+        tr_loss[e] = loss(X_, Y_, model, params.wd)
         gs = gradient(ps) do 
-            loss(X_, Y_, model.net, params.wd)
+            loss(X_, Y_, model, params.wd)
         end
         Flux.update!(opt,ps, gs)
         if e % 100 == 0
@@ -79,17 +80,12 @@ function generate_embedding(data, cf, params; dump=true)
     return tr_loss, patient_embed, model, final_acc
 end 
 
-function l2_penalty(model)
-    penalty = 0
-    for layer in model[2:end]
-        if typeof(layer) != typeof(vec) && typeof(layer) != typeof(Flux.Parallel)
-            penalty += sum(abs2, layer.weight)
-        end
-    end
-    return penalty
+function l2_penalty(model::FE_model)
+    l2 = sum(abs2, model.embed_1.weight) + sum(abs2, model.embed_2.weight) + sum(abs2, model.hl1.weight) + sum(abs2, model.hl2.weight) + sum(abs2, model.outpl.weight)
+    return l2
 end
 
-loss(x, y, model, wd) = Flux.Losses.mse(model(x), y) + l2_penalty(model) * wd
+loss(x, y, model, wd) = Flux.Losses.mse(model.net(x), y) + l2_penalty(model) * wd
 
 
 
@@ -97,7 +93,7 @@ function run_FE(input_data, cf, model_params_list, outdir;nepochs=10_000, tr=1e-
     modelid = "FE_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
     model_outdir = "$(outdir)/$(modelid)"
     mkdir(model_outdir)
-    params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(input_data.factor_2), "train")
+    params = Params(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(input_data.factor_2), length(input_data.factor_1), input_data.name)
     push!(model_params_list, params)
     tr_loss, patient_embed, model, final_acc = generate_embedding(input_data, cf, params, dump=dump)
     lossfile = "$(params.model_outdir)/tr_loss.txt"

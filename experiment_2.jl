@@ -35,11 +35,11 @@ fd = FactorizedEmbedding.DataPreprocessing.split_train_test(ge_cds_all, cf_df)
 
 patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(fd.train, cf_df[fd.train_ids, :], model_params_list, outdir; 
         nepochs = 12_000, 
-        wd = 1e-3,
+        wd = 1e-10,
         emb_size_1 = 2, 
-        emb_size_2 = 50, 
-        hl1=50, 
-        hl2=50, 
+        emb_size_2 = 2, 
+        hl1=5, 
+        hl2=5, 
         dump=true
         )    
 println("tr acc $(final_acc), loss: $(tr_loss[end])")
@@ -98,10 +98,10 @@ function run_inference(model::FactorizedEmbedding.FE_model, tr_params::Factorize
     for e in ProgressBar(1:nepochs_tst)
         ps = Flux.params(inference_mdl.net[1])
         gs = gradient(ps) do 
-                FactorizedEmbedding.loss(X_, Y_, inference_mdl.net, params.wd)
+                FactorizedEmbedding.loss(X_, Y_, inference_mdl, params.wd)
             end 
         Flux.update!(opt, ps , gs)
-        tst_loss[e] = FactorizedEmbedding.loss(X_, Y_, inference_mdl.net, params.wd)
+        tst_loss[e] = FactorizedEmbedding.loss(X_, Y_, inference_mdl, params.wd)
         if e % 100 == 0
             patient_embed = cpu(inference_mdl.net[1][1].weight')
             embedfile = "$(params.model_outdir)/test_model_emb_layer_1_epoch_$(e).txt"
@@ -132,7 +132,9 @@ run(`Rscript --vanilla plotting_trajectories_test.R $outdir $(tr_params.modelid)
 cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*tst.png $(outdir)/$(tr_params.modelid)_test.gif"
 run(`bash -c $cmd`)
 
-
+params_df = FactorizedEmbedding.DataPreprocessing.params_list_to_df(model_params_list)
+CSV.write("$(outdir)/model_params.txt", params_df)
+#= 
 groups = cf_df[vcat(fd.train_ids, fd.test_ids), :].interest_groups
 FE_merged = vcat(patient_embed_mat, Matrix{Float32}(embeddf))
 train_test = vcat(["train" for i in fd.train_ids], ["test" for i in fd.test_ids] ) 
@@ -157,7 +159,7 @@ CSV.write("$(outdir)/$(tr_params.modelid)_train_test_PCA_tsne.txt", PCA_proj)
 run(`Rscript --vanilla  plotting_functions_tsne_2.R $outdir $(tr_params.modelid)`)
 
 
+
 params_df = FactorizedEmbedding.DataPreprocessing.params_list_to_df(model_params_list)
 CSV.write("$(outdir)/model_params.txt", params_df)
-params_df = FactorizedEmbedding.DataPreprocessing.params_list_to_df(model_params_list)
-CSV.write("$(outdir)/model_params.txt", params_df)
+ =#

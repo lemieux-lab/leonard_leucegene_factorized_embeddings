@@ -13,35 +13,34 @@ using TSne
 using DataStructures
 using MultivariateStats
 
+####################################################
+########## Paths and data ##########################
+########## splitting test/train ####################
+####################################################
+
 basepath = "/u/sauves/leonard_leucegene_factorized_embeddings/"
 outpath, outdir, model_params_list, accuracy_list = Init.set_dirs(basepath)
 
-
-include("utils.jl")
 include("embeddings.jl")
+include("utils.jl")
 cf_df, ge_cds_all, lsc17_df  = FactorizedEmbedding.DataPreprocessing.load_data(basepath)
 
-counter(cf_df.interest_groups) 
+#fd = FactorizedEmbedding.DataPreprocessing.split_train_test(ge_cds_all, cf_df)
 
-fd = FactorizedEmbedding.DataPreprocessing.split_train_test(ge_cds_all, cf_df, n=10)
+#################################################################################################
+######                  #########################################################################
+######      TRAINING    #########################################################################
+######                  #########################################################################
+#################################################################################################
+# using all dataset 
 
-
-fd.test_ids
-########################################################################################################################################
-######                  #######################################################################################################################
-######      TRAINING    ################################################################################################### 
-######                  #######################################################################################################################
-########################################################################################################################################
-
-
-
-## train with rest
-patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(fd.train, cf_df[fd.train_ids, :], model_params_list, outdir; 
-        nepochs = 2_000, 
-        emb_size_1 = 17, 
-        emb_size_2 = 50, 
-        hl1=60, 
-        hl2=60, 
+patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(ge_cds_all, cf_df, model_params_list, outdir; 
+        nepochs = 12_000, 
+        wd = 1e-10,
+        emb_size_1 = 2, 
+        emb_size_2 = 2, 
+        hl1=10, 
+        hl2=10, 
         dump=true
         )    
 println("tr acc $(final_acc), loss: $(tr_loss[end])")
@@ -49,52 +48,63 @@ tr_params = model_params_list[end]
 lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
 lossfile = "$(tr_params.model_outdir)/tr_loss.txt"
 CSV.write(lossfile, lossdf)
-Utils.tsne_benchmark(fd.train_ids, ge_cds_all, lsc17_df, patient_embed_mat, cf_df, outdir, tr_params.modelid)
-run(`Rscript --vanilla  plotting_functions_tsne.R $outdir $(tr_params.modelid)`)
 
-########################################################################################################################################
-######                   #######################################################################################################################
-######      INFERENCE    ################################################################################################### 
-######                   #######################################################################################################################
-########################################################################################################################################
+#################################################
+##### Plotting training trajectories & loss #####
+#################################################
+run(`Rscript --vanilla plotting_trajectories_training.R $outdir $(tr_params.modelid)`)
 
+
+##############################################
+##### Running tsne benchmark vs LSC17, PCA ###
+##### Plotting results #######################
+##############################################
+#Utils.tsne_benchmark(fd.train_ids, ge_cds_all, lsc17_df, patient_embed_mat, cf_df, outdir, tr_params.modelid)
+#run(`Rscript --vanilla  plotting_functions_tsne.R $outdir $(tr_params.modelid)`)
+
+#######################################################################################
+######                   ##############################################################
+######      INFERENCE    ############################################################## 
+######                   ##############################################################
+#######################################################################################
 
 function run_inference(model::FactorizedEmbedding.FE_model, tr_params::FactorizedEmbedding.Params, 
-    fd::FactorizedEmbedding.DataPreprocessing.FoldData, cf_df::DataFrame ;
-    nepochs_tst=10_000, n_samples::Int=10)
-    
+    data::FactorizedEmbedding.DataPreprocessing.Data, cf_df::DataFrame ;
+    nepochs_tst=10_000)
+    n_samples = length(data.factor_1)
     inference_mdl = FactorizedEmbedding.replace_layer(model, n_samples)
     params = FactorizedEmbedding.Params(
         nepochs_tst, 
         tr_params.tr, 
         tr_params.wd, 
-        length(fd.test.factor_2), 
+        tr_params.emb_size_1, 
         tr_params.emb_size_2, 
         tr_params.hl1_size, 
         tr_params.hl2_size, 
         tr_params.modelid, 
         tr_params.model_outdir, 
         tr_params.insize,
+        n_samples,
         "test")   
     push!(model_params_list, params)
 
-    X_, Y_ = FactorizedEmbedding.DataPreprocessing.prep_data(fd.test)
+    X_, Y_ = FactorizedEmbedding.DataPreprocessing.prep_data(data)
     opt = Flux.ADAM(params.tr)
     tst_loss = Array{Float32, 1}(undef, nepochs_tst)
 
     for e in ProgressBar(1:nepochs_tst)
         ps = Flux.params(inference_mdl.net[1])
         gs = gradient(ps) do 
-                FactorizedEmbedding.loss(X_, Y_, inference_mdl.net, params.wd)
+                FactorizedEmbedding.loss(X_, Y_, inference_mdl, params.wd)
             end 
         Flux.update!(opt, ps , gs)
-        tst_loss[e] = FactorizedEmbedding.loss(X_, Y_, inference_mdl.net, params.wd)
+        tst_loss[e] = FactorizedEmbedding.loss(X_, Y_, inference_mdl, params.wd)
         if e % 100 == 0
             patient_embed = cpu(inference_mdl.net[1][1].weight')
-            embedfile = "$(params.model_outdir)/model_emb_layer_1_epoch_$(e).txt"
+            embedfile = "$(params.model_outdir)/test_model_emb_layer_1_epoch_$(e).txt"
             embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
-            embeddf.index = fd.test.factor_1
-            embeddf.group1 = cf_df[fd.test_ids,:].interest_groups
+            embeddf.index = data.factor_1
+            embeddf.group1 = cf_df.interest_groups
             CSV.write( embedfile, embeddf)
             
         end 
@@ -105,9 +115,31 @@ function run_inference(model::FactorizedEmbedding.FE_model, tr_params::Factorize
     embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
     return embeddf, inference_mdl, tst_loss, tst_acc
 end 
-embeddf, inference_mdl, tst_loss, tst_acc = run_inference(model, tr_params, fd, cf_df; nepochs_tst=tr_params.nepochs, n_samples = length(fd.test_ids))
-CSV.write("$(outdir)/$(tr_params.modelid)/tst_loss.txt", DataFrame(Dict([("loss", tst_loss), ("epoch", 1:length(tst_loss))])))
 
+embeddf, inference_mdl, tst_loss, tst_acc = run_inference(model, tr_params, ge_cds_all, cf_df; nepochs_tst=tr_params.nepochs, n_samples = 300)
+
+CSV.write("$(outdir)/$(tr_params.modelid)/tst_loss.txt", DataFrame(Dict([("loss", tst_loss), ("epoch", 1:length(tst_loss))])))
+params_df = FactorizedEmbedding.DataPreprocessing.params_list_to_df(model_params_list)
+CSV.write("$(outdir)/model_params.txt", params_df)
+
+#################################################
+##### Plotting testing trajectories & loss #####
+#################################################
+run(`Rscript --vanilla plotting_trajectories_test.R $outdir $(tr_params.modelid)`)
+
+###################################################
+##### Creating training traject. gif animation ####
+###################################################
+cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*trn.png $(outdir)/$(tr_params.modelid)_training.gif"
+run(`bash -c $cmd`)
+
+###################################################
+##### Creating testing traject. gif animation #####
+###################################################
+cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*tst.png $(outdir)/$(tr_params.modelid)_test.gif"
+run(`bash -c $cmd`)
+
+#= 
 groups = cf_df[vcat(fd.train_ids, fd.test_ids), :].interest_groups
 FE_merged = vcat(patient_embed_mat, Matrix{Float32}(embeddf))
 train_test = vcat(["train" for i in fd.train_ids], ["test" for i in fd.test_ids] ) 
@@ -132,7 +164,7 @@ CSV.write("$(outdir)/$(tr_params.modelid)_train_test_PCA_tsne.txt", PCA_proj)
 run(`Rscript --vanilla  plotting_functions_tsne_2.R $outdir $(tr_params.modelid)`)
 
 
+
 params_df = FactorizedEmbedding.DataPreprocessing.params_list_to_df(model_params_list)
 CSV.write("$(outdir)/model_params.txt", params_df)
-params_df = FactorizedEmbedding.DataPreprocessing.params_list_to_df(model_params_list)
-CSV.write("$(outdir)/model_params.txt", params_df)
+ =#
