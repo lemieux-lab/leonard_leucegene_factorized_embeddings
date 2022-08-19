@@ -38,9 +38,9 @@ patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(ge_cd
         nepochs = 12_000, 
         wd = 1e-9,
         emb_size_1 = 2, 
-        emb_size_2 = 50, 
-        hl1=50, 
-        hl2=50, 
+        emb_size_2 = 25, 
+        hl1=25, 
+        hl2=25, 
         dump=true
         )    
 println("tr acc $(final_acc), loss: $(tr_loss[end])")
@@ -69,25 +69,28 @@ function make_grid(nb_genes;grid_size=10, min=-3, max=3)
     points = collect(range(min, max, step = step_size   ))
     col1 = vec((points .* ones(grid_size + 1, (grid_size +1) * nb_genes))')
     col2 = vec((vec(points .* ones(grid_size + 1, (grid_size +1))) .* ones(1, nb_genes))') 
+    
     coords_x_genes = vcat(col1', col2')'
     return coords_x_genes
 end 
-grid = make_grid(tr_params.insize)
+grid_size = 10
+points = collect(range(-3, 3, step = 0.   ))
+vec((points .* ones(grid_size +1, grid_size +1)))
+grid = make_grid(tr_params.insize, grid_size=grid_size)
 true_expr = ge_cds_all.data[selected_sample,:]
 pred_expr = model.net((Array{Int32}(ones(tr_params.insize) * selected_sample), collect(1:tr_params.insize)))
 corrs_pred_expr = []
 corrs_true_expr = []
-#for point_id in ProgressBar(1:)# length(grid)
-point_grid = grid[(point_id - 1) * tr_params.insize + 1 : point_id * tr_params.insize,:]'
-genes_embed = model.embed_2.weight
-gpu(point_grid)
-genes_embed
-grid_matrix = vcat(gpu(point_grid), genes_embed)
-model.hl1(grid_matrix)
-grid_pred_expr = vec(model.outpl(model.hl2(model.hl1(grid_matrix))))
-push!(corrs_true_expr, cor(grid_pred_expr, true_expr))
-push!(corrs_pred_expr, cor(grid_pred_expr, pred_expr))
-#end
+for point_id in ProgressBar(1: abs2(grid_size + 1))
+    point_grid = grid[(point_id - 1) * tr_params.insize + 1 : point_id * tr_params.insize,:]'
+    genes_embed = model.embed_2.weight
+    grid_matrix = vcat(gpu(point_grid), genes_embed)
+    grid_pred_expr = vec(model.outpl(model.hl2(model.hl1(grid_matrix))))
+    push!(corrs_true_expr, cor(grid_pred_expr, true_expr))
+    push!(corrs_pred_expr, cor(grid_pred_expr, pred_expr))
+end
+corrs_pred_expr
+corrs_true_expr
 
 #Utils.tsne_benchmark(fd.train_ids, ge_cds_all, lsc17_df, patient_embed_mat, cf_df, outdir, tr_params.modelid)
 #run(`Rscript --vanilla  plotting_functions_tsne.R $outdir $(tr_params.modelid)`)

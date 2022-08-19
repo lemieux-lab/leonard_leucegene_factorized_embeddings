@@ -40,9 +40,9 @@ function generate_fe_model(factor_1_size::Int, factor_2_size::Int, params::Param
     b, c = params.hl1_size, params.hl2_size 
     emb_layer_1 = gpu(Flux.Embedding(factor_1_size, emb_size_1))
     emb_layer_2 = gpu(Flux.Embedding(factor_2_size, emb_size_2))
-    hl1 = Flux.Dense(a, b, relu)
-    hl2 = Flux.Dense(b, c, relu)
-    outpl = Flux.Dense(c, 1, identity)
+    hl1 = gpu(Flux.Dense(a, b, relu))
+    hl2 = gpu(Flux.Dense(b, c, relu))
+    outpl = gpu(Flux.Dense(c, 1, identity))
     net = gpu(Flux.Chain(
         Flux.Parallel(vcat, emb_layer_1, emb_layer_2),
         hl1, hl2, outpl,
