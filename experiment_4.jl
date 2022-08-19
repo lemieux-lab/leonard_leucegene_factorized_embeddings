@@ -35,12 +35,12 @@ cf_df, ge_cds_all, lsc17_df  = FactorizedEmbedding.DataPreprocessing.load_data(b
 # using all dataset 
 
 patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(ge_cds_all, cf_df, model_params_list, outdir; 
-        nepochs = 12_000, 
+        nepochs = 200_000, 
         wd = 1e-9,
         emb_size_1 = 2, 
-        emb_size_2 = 25, 
-        hl1=25, 
-        hl2=25, 
+        emb_size_2 = 50, 
+        hl1=50, 
+        hl2=50, 
         dump=true
         )    
 println("tr acc $(final_acc), loss: $(tr_loss[end])")
@@ -61,7 +61,7 @@ run(`Rscript --vanilla plotting_trajectories_training.R $outdir $(tr_params.mode
 ##### sample ########################################
 #####################################################
 MLL_t = findall(x -> x == "MLL_t", cf_df.interest_groups)
-selected_sample = MLL_t[1]
+selected_sample = MLL_t[4]
 sample_true_expr = ge_cds_all.data[selected_sample,:]
 
 function make_grid(nb_genes;grid_size=10, min=-3, max=3)
@@ -73,25 +73,30 @@ function make_grid(nb_genes;grid_size=10, min=-3, max=3)
     coords_x_genes = vcat(col1', col2')'
     return grid, coords_x_genes
 end 
-grid_size = 50
+grid_size = 100
 grid, grid_genes = make_grid(tr_params.insize, grid_size=grid_size)
 true_expr = ge_cds_all.data[selected_sample,:]
 pred_expr = model.net((Array{Int32}(ones(tr_params.insize) * selected_sample), collect(1:tr_params.insize)))
-corrs_pred_expr = []
-corrs_true_expr = []
+corrs_pred_expr = ones(abs2(grid_size + 1))
+corrs_true_expr = ones(abs2(grid_size + 1))
+corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_pred_expr_corrs.txt"
 for point_id in ProgressBar(1: abs2(grid_size + 1))
     point_grid = grid_genes[(point_id - 1) * tr_params.insize + 1 : point_id * tr_params.insize,:]'
     genes_embed = model.embed_2.weight
     grid_matrix = vcat(gpu(point_grid), genes_embed)
     grid_pred_expr = vec(model.outpl(model.hl2(model.hl1(grid_matrix))))
-    push!(corrs_true_expr, cor(grid_pred_expr, true_expr))
-    push!(corrs_pred_expr, cor(grid_pred_expr, pred_expr))
+    corrs_true_expr[point_id] = cor(grid_pred_expr, true_expr)
+    corrs_pred_expr[point_id] = cor(grid_pred_expr, pred_expr)
+    if point_id % 100 == 0
+        res = vcat(grid', corrs_pred_expr', corrs_true_expr')'
+        CSV.write(corr_fname, DataFrame(Dict([("col$(i)", res[:,i]) for i in 1:size(res)[2] ])))
+        run(`Rscript --vanilla plotting_corrs.R $outdir $(tr_params.modelid) $(cf_df.sampleID[selected_sample])`)
+    end 
 end
-corrs_pred_expr
-corrs_true_expr
-corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_MLL_t_pred_expr_corrs.txt"
 res = vcat(grid', corrs_pred_expr', corrs_true_expr')'
 CSV.write(corr_fname, DataFrame(Dict([("col$(i)", res[:,i]) for i in 1:size(res)[2] ])))
+run(`Rscript --vanilla plotting_corrs.R $outdir $(tr_params.modelid) $(cf_df.sampleID[selected_sample])`)
+
 #Utils.tsne_benchmark(fd.train_ids, ge_cds_all, lsc17_df, patient_embed_mat, cf_df, outdir, tr_params.modelid)
 #run(`Rscript --vanilla  plotting_functions_tsne.R $outdir $(tr_params.modelid)`)
 
