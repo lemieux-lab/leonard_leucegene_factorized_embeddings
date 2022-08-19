@@ -64,15 +64,31 @@ MLL_t = findall(x -> x == "MLL_t", cf_df.interest_groups)
 selected_sample = MLL_t[1]
 sample_true_expr = ge_cds_all.data[selected_sample,:]
 
-function make_grid(n;min=-3, max=3)
-    step_size = (max - min) /n
-    points = collect(range(-3, 3, step = step_size  ))
-    col1 = vec((points .* ones(n + 1, n +1 ))')
-    col2 = vec(points .* ones(n +1 , n+ 1))
-    return (col1, col2)
+function make_grid(nb_genes;grid_size=10, min=-3, max=3)
+    step_size = (max - min) / grid_size
+    points = collect(range(min, max, step = step_size   ))
+    col1 = vec((points .* ones(grid_size + 1, (grid_size +1) * nb_genes))')
+    col2 = vec((vec(points .* ones(grid_size + 1, (grid_size +1))) .* ones(1, nb_genes))') 
+    coords_x_genes = vcat(col1', col2')'
+    return coords_x_genes
 end 
-col1, col2 = make_grid(10)
-vcat(col1', col2')'
+grid = make_grid(tr_params.insize)
+true_expr = ge_cds_all.data[selected_sample,:]
+pred_expr = model.net((Array{Int32}(ones(tr_params.insize) * selected_sample), collect(1:tr_params.insize)))
+corrs_pred_expr = []
+corrs_true_expr = []
+#for point_id in ProgressBar(1:)# length(grid)
+point_grid = grid[(point_id - 1) * tr_params.insize + 1 : point_id * tr_params.insize,:]'
+genes_embed = model.embed_2.weight
+gpu(point_grid)
+genes_embed
+grid_matrix = vcat(gpu(point_grid), genes_embed)
+model.hl1(grid_matrix)
+grid_pred_expr = vec(model.outpl(model.hl2(model.hl1(grid_matrix))))
+push!(corrs_true_expr, cor(grid_pred_expr, true_expr))
+push!(corrs_pred_expr, cor(grid_pred_expr, pred_expr))
+#end
+
 #Utils.tsne_benchmark(fd.train_ids, ge_cds_all, lsc17_df, patient_embed_mat, cf_df, outdir, tr_params.modelid)
 #run(`Rscript --vanilla  plotting_functions_tsne.R $outdir $(tr_params.modelid)`)
 
