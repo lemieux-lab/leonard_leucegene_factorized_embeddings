@@ -1,10 +1,38 @@
 module Utils 
 using CSV
 using TSne
-using DataFrames 
+using DataFrames
+using MultivariateStats
+
 function dump_accuracy(model_params_list, accuracy_list, outdir)
     acc_df = Utils.DataFrame(Dict([("modelid", [p.modelid for p in model_params_list]), ("pearson_corr", accuracy_list)]))
     CSV.write("$(outdir)/model_accuracies.txt", acc_df)
+end 
+
+function tsne_benchmark_2d_train(ids, ge_cds, patient_embed, cf, outdir, mid)
+    index = ge_cds.factor_1[ids]
+    # get 2d tsne 
+    @time CDS_tsne = tsne(ge_cds.data[ids,:], 2, 0, 1000,30.0;verbose=true,progress=true)
+    # get PCA 1-2 
+    PCA_M = fit(PCA, Matrix{Float32}(ge_cds.data[ids,:]'), maxoutdim=2)
+    X_PCA_proj = predict(PCA_M, ge_cds.data[ids,:]')'
+    # get 2d embedding 
+    FE_df = DataFrame(Dict([("dim_$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
+    FE_df.interest_group = cf[ids,:].interest_groups
+    FE_df.index = index
+    FE_df.method = map(x->"FE", collect(1:length(index)))
+    PCA_df = DataFrame(Dict([("dim_$(i)", patient_embed[:,i]) for i in 1:size(X_PCA_proj)[2]])) 
+    PCA_df.interest_group = cf[ids,:].interest_groups
+    PCA_df.index = index
+    PCA_df.method = map(x->"PCA_1_2", collect(1:length(index)))
+    TSNE_df = DataFrame(Dict([("dim_$i", CDS_tsne[:,i]) for i in 1:size(CDS_tsne)[2] ]))
+    TSNE_df.interest_group = cf[ids,:].interest_groups
+    TSNE_df.index = index
+    TSNE_df.method = map(x->"PCA_1_2", collect(1:length(index)))
+    CSV.write("$(outdir)/$(mid)_CDS_train_FE_df.txt", FE_df)
+    CSV.write("$(outdir)/$(mid)_CDS_train_PCA_1_2_df.txt", PCA_df)
+    CSV.write("$(outdir)/$(mid)_CDS_train_tsne_df.txt", TSNE_df)
+
 end 
 
 function tsne_benchmark(ids, ge_cds, lsc17, patient_embed, cf, outdir, mid)     

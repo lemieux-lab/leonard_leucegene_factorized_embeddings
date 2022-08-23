@@ -35,7 +35,7 @@ cf_df, ge_cds_all, lsc17_df  = FactorizedEmbedding.DataPreprocessing.load_data(b
 # using all dataset 
 
 patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(ge_cds_all, cf_df, model_params_list, outdir; 
-        nepochs = 200_000, 
+        nepochs = 12_000, 
         wd = 1e-9,
         emb_size_1 = 2, 
         emb_size_2 = 50, 
@@ -60,6 +60,11 @@ run(`Rscript --vanilla plotting_trajectories_training.R $outdir $(tr_params.mode
 ##### Investigate embed space mapping wrt selected ##
 ##### sample ########################################
 #####################################################
+##### Does NOT run outside of REPL ... ##############
+#####################################################
+##### TO debug for now ...  #########################
+#####################################################
+
 MLL_t = findall(x -> x == "MLL_t", cf_df.interest_groups)
 selected_sample = MLL_t[4]
 sample_true_expr = ge_cds_all.data[selected_sample,:]
@@ -73,7 +78,7 @@ function make_grid(nb_genes;grid_size=10, min=-3, max=3)
     coords_x_genes = vcat(col1', col2')'
     return grid, coords_x_genes
 end 
-grid_size = 100
+grid_size =  50
 grid, grid_genes = make_grid(tr_params.insize, grid_size=grid_size)
 true_expr = ge_cds_all.data[selected_sample,:]
 pred_expr = model.net((Array{Int32}(ones(tr_params.insize) * selected_sample), collect(1:tr_params.insize)))

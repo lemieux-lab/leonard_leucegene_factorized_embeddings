@@ -15,7 +15,6 @@ using MultivariateStats
 
 ####################################################
 ########## Paths and data ##########################
-########## splitting test/train ####################
 ####################################################
 
 basepath = "/u/sauves/leonard_leucegene_factorized_embeddings/"
@@ -24,8 +23,6 @@ outpath, outdir, model_params_list, accuracy_list = Init.set_dirs(basepath)
 include("embeddings.jl")
 include("utils.jl")
 cf_df, ge_cds_all, lsc17_df  = FactorizedEmbedding.DataPreprocessing.load_data(basepath)
-
-#fd = FactorizedEmbedding.DataPreprocessing.split_train_test(ge_cds_all, cf_df)
 
 #################################################################################################
 ######                  #########################################################################
@@ -55,19 +52,22 @@ CSV.write(lossfile, lossdf)
 run(`Rscript --vanilla plotting_trajectories_training.R $outdir $(tr_params.modelid)`)
 
 
-##############################################
-##### Running tsne benchmark vs LSC17, PCA ###
-##### Plotting results #######################
-##############################################
-#Utils.tsne_benchmark(fd.train_ids, ge_cds_all, lsc17_df, patient_embed_mat, cf_df, outdir, tr_params.modelid)
-#run(`Rscript --vanilla  plotting_functions_tsne.R $outdir $(tr_params.modelid)`)
+######################################################
+##### Running benchmark FE vs T-SNE-CDS PCA-1-2 ######
+##### On trained FE, with all data ###################
+##### Report some distance statistics ################
+##### Plotting results ###############################
+######################################################
+Utils.tsne_benchmark_2d_train(collect(1:length(ge_cds_all.factor_1)), ge_cds_all, patient_embed_mat, cf_df,outdir, tr_params.modelid)
+run(`Rscript --vanilla  plotting_functions_2d_tsne_benchmark.R $outdir $(tr_params.modelid)`)
 
 #######################################################################################
 ######                   ##############################################################
 ######      INFERENCE    ############################################################## 
-######                   ##############################################################
+###### 1) t8-21 sample, MLL-Transl sample, inv16 sample ###############################
+###### 2) all training set ############################################################
 #######################################################################################
-
+test_ids = []
 function run_inference(model::FactorizedEmbedding.FE_model, tr_params::FactorizedEmbedding.Params, 
     data::FactorizedEmbedding.DataPreprocessing.Data, cf_df::DataFrame ;
     nepochs_tst=10_000)
