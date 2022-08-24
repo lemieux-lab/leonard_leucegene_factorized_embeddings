@@ -21,14 +21,14 @@ function tsne_benchmark_2d_train(ids, ge_cds, patient_embed, cf, outdir, mid)
     FE_df.interest_group = cf[ids,:].interest_groups
     FE_df.index = index
     FE_df.method = map(x->"FE", collect(1:length(index)))
-    PCA_df = DataFrame(Dict([("dim_$(i)", patient_embed[:,i]) for i in 1:size(X_PCA_proj)[2]])) 
+    PCA_df = DataFrame(Dict([("dim_$(i)", X_PCA_proj[:,i]) for i in 1:size(X_PCA_proj)[2]])) 
     PCA_df.interest_group = cf[ids,:].interest_groups
     PCA_df.index = index
     PCA_df.method = map(x->"PCA_1_2", collect(1:length(index)))
     TSNE_df = DataFrame(Dict([("dim_$i", CDS_tsne[:,i]) for i in 1:size(CDS_tsne)[2] ]))
     TSNE_df.interest_group = cf[ids,:].interest_groups
     TSNE_df.index = index
-    TSNE_df.method = map(x->"PCA_1_2", collect(1:length(index)))
+    TSNE_df.method = map(x->"TSNE", collect(1:length(index)))
     CSV.write("$(outdir)/$(mid)_CDS_train_FE_df.txt", FE_df)
     CSV.write("$(outdir)/$(mid)_CDS_train_PCA_1_2_df.txt", PCA_df)
     CSV.write("$(outdir)/$(mid)_CDS_train_tsne_df.txt", TSNE_df)

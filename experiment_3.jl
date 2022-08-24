@@ -32,10 +32,10 @@ cf_df, ge_cds_all, lsc17_df  = FactorizedEmbedding.DataPreprocessing.load_data(b
 # using all dataset 
 
 patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(ge_cds_all, cf_df, model_params_list, outdir; 
-        nepochs = 12_000, 
-        wd = 1e-9,
+        nepochs = 20_000, 
+        wd = 0,
         emb_size_1 = 2, 
-        emb_size_2 = 50, 
+        emb_size_2 = 25, 
         hl1=50, 
         hl2=50, 
         dump=true
