@@ -1,4 +1,3 @@
-module DataPreprocessing
 using DataFrames
 using Statistics
 using RedefStructs
@@ -9,14 +8,14 @@ using RedefStructs
 using Random
 
 
-@redef struct Data
+struct Data
     name::String
     data::Array
     factor_1::Array
     factor_2::Array
 end
 
-@redef struct FoldData
+struct FoldData
     train::Data
     train_ids::Array
     test::Data
@@ -81,7 +80,7 @@ function load_data(basepath::String; frac_genes=0.5)
     cf.interest_groups = interest_groups
     ge_cds_raw_data = CSV.read(ge_cds_fname, DataFrame)
     lsc17 = CSV.read(ge_lsc17_fname, DataFrame)
-    ge_cds_all = DataPreprocessing.log_transf_high_variance(ge_cds_raw_data, frac_genes=frac_genes)
+    ge_cds_all = log_transf_high_variance(ge_cds_raw_data, frac_genes=frac_genes)
     # print(ge_cds_all)
     # ge_cds_split = split_train_test(ge_cds_all)
     return (cf, ge_cds_all, lsc17)
@@ -128,5 +127,4 @@ function log_transf_high_variance(df::DataFrame; frac_genes = 0.1)
     cols = cols[hvg]
     new_data = Data("full", data_full, index, cols)
     return new_data
-end
 end

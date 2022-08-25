@@ -26,10 +26,10 @@ using MultivariateStats
 
 basepath = "/u/sauves/leonard_leucegene_factorized_embeddings/"
 outpath, outdir, model_params_list, accuracy_list = Init.set_dirs(basepath)
-
+include("data_preprocessing.jl")
 include("embeddings.jl")
 include("utils.jl")
-cf_df, ge_cds_all, lsc17_df  = FactorizedEmbedding.DataPreprocessing.load_data(basepath)
+cf_df, ge_cds_all, lsc17_df  = load_data(basepath)
 
 #################################################################################################
 ######                  #########################################################################
@@ -38,9 +38,9 @@ cf_df, ge_cds_all, lsc17_df  = FactorizedEmbedding.DataPreprocessing.load_data(b
 #################################################################################################
 # using all dataset 
 
-patient_embed_mat, model, final_acc, tr_loss  = FactorizedEmbedding.run_FE(ge_cds_all, cf_df, model_params_list, outdir; 
-        nepochs = 20_000, 
-        wd = 0,
+patient_embed_mat, model, final_acc, tr_loss  = run_FE(ge_cds_all, cf_df, model_params_list, outdir; 
+        nepochs = 12_000, 
+        wd = 1e-9,
         emb_size_1 = 3, 
         emb_size_2 = 25, 
         hl1=50, 
@@ -56,7 +56,7 @@ CSV.write(lossfile, lossdf)
 #################################################
 ##### Plotting training trajectories & loss #####
 #################################################
-run(`Rscript --vanilla plotting_trajectories_training.R $outdir $(tr_params.modelid)`)
+run(`Rscript --vanilla plotting_trajectories_training_3d.R $outdir $(tr_params.modelid)`)
 
 
 ######################################################
@@ -65,8 +65,8 @@ run(`Rscript --vanilla plotting_trajectories_training.R $outdir $(tr_params.mode
 ##### Report some distance statistics ################
 ##### Plotting results ###############################
 ######################################################
-Utils.tsne_benchmark_2d_train(collect(1:length(ge_cds_all.factor_1)), ge_cds_all, patient_embed_mat, cf_df,outdir, tr_params.modelid)
-run(`Rscript --vanilla  plotting_functions_2d_tsne_benchmark.R $outdir $(tr_params.modelid)`)
+#Utils.tsne_benchmark_2d_train(collect(1:length(ge_cds_all.factor_1)), ge_cds_all, patient_embed_mat, cf_df,outdir, tr_params.modelid)
+#run(`Rscript --vanilla  plotting_functions_2d_tsne_benchmark.R $outdir $(tr_params.modelid)`)
 
 #######################################################################################
 ######                   ##############################################################
@@ -74,13 +74,12 @@ run(`Rscript --vanilla  plotting_functions_2d_tsne_benchmark.R $outdir $(tr_para
 ###### 1) t8-21 sample, MLL-Transl sample, inv16 sample ###############################
 ###### 2) all training set ############################################################
 #######################################################################################
-test_ids = []
-function run_inference(model::FactorizedEmbedding.FE_model, tr_params::FactorizedEmbedding.Params, 
-    data::FactorizedEmbedding.DataPreprocessing.Data, cf_df::DataFrame ;
+
+function run_inference(model::FE_model, tr_params::Params, data::Data, cf_df::DataFrame ;
     nepochs_tst=10_000)
     n_samples = length(data.factor_1)
-    inference_mdl = FactorizedEmbedding.replace_layer(model, n_samples)
-    params = FactorizedEmbedding.Params(
+    inference_mdl = replace_layer(model, n_samples)
+    params = Params(
         nepochs_tst, 
         tr_params.tr, 
         tr_params.wd, 
@@ -95,17 +94,17 @@ function run_inference(model::FactorizedEmbedding.FE_model, tr_params::Factorize
         "test")   
     push!(model_params_list, params)
 
-    X_, Y_ = FactorizedEmbedding.DataPreprocessing.prep_data(data)
+    X_, Y_ = prep_data(data)
     opt = Flux.ADAM(params.tr)
     tst_loss = Array{Float32, 1}(undef, nepochs_tst)
 
     for e in ProgressBar(1:nepochs_tst)
         ps = Flux.params(inference_mdl.net[1])
         gs = gradient(ps) do 
-                FactorizedEmbedding.loss(X_, Y_, inference_mdl, params.wd)
+                loss(X_, Y_, inference_mdl, params.wd)
             end 
         Flux.update!(opt, ps , gs)
-        tst_loss[e] = FactorizedEmbedding.loss(X_, Y_, inference_mdl, params.wd)
+        tst_loss[e] = loss(X_, Y_, inference_mdl, params.wd)
         if e % 100 == 0
             patient_embed = cpu(inference_mdl.net[1][1].weight')
             embedfile = "$(params.model_outdir)/test_model_emb_layer_1_epoch_$(e).txt"
@@ -126,24 +125,24 @@ end
 embeddf, inference_mdl, tst_loss, tst_acc = run_inference(model, tr_params, ge_cds_all, cf_df; nepochs_tst=tr_params.nepochs)
 
 CSV.write("$(outdir)/$(tr_params.modelid)/tst_loss.txt", DataFrame(Dict([("loss", tst_loss), ("epoch", 1:length(tst_loss))])))
-params_df = FactorizedEmbedding.DataPreprocessing.params_list_to_df(model_params_list)
+params_df = params_list_to_df(model_params_list)
 CSV.write("$(outdir)/model_params.txt", params_df)
 
 #################################################
 ##### Plotting testing trajectories & loss #####
 #################################################
-run(`Rscript --vanilla plotting_trajectories_test.R $outdir $(tr_params.modelid)`)
+run(`Rscript --vanilla plotting_trajectories_test_3d.R $outdir $(tr_params.modelid)`)
 
 ###################################################
 ##### Creating training traject. gif animation ####
 ###################################################
-cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*trn.png $(outdir)/$(tr_params.modelid)_training.gif"
+cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*_3d_trn.png $(outdir)/$(tr_params.modelid)_training.gif"
 run(`bash -c $cmd`)
 
 ###################################################
 ##### Creating testing traject. gif animation #####
 ###################################################
-cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*tst.png $(outdir)/$(tr_params.modelid)_test.gif"
+cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*_3d_tst.png $(outdir)/$(tr_params.modelid)_test.gif"
 run(`bash -c $cmd`)
 
 #= 

@@ -1,4 +1,3 @@
-module FactorizedEmbedding
 using Flux 
 using Statistics
 using CUDA
@@ -10,7 +9,7 @@ using Dates
 using SHA
 include("data_preprocessing.jl")
 
-@redef struct FE_model 
+struct FE_model 
     net::Flux.Chain
     embed_1::Flux.Embedding
     embed_2::Flux.Embedding
@@ -19,7 +18,7 @@ include("data_preprocessing.jl")
     outpl::Flux.Dense
 end 
 
-@redef struct Params 
+struct Params 
     nepochs::Int64
     tr::Float64
     wd::Float64 
@@ -55,7 +54,7 @@ function generate_embedding(data, cf, params; dump=true)
     model = generate_fe_model(length(data.factor_1), length(data.factor_2), params)
     println(params)
     tr_loss = Array{Float32, 1}(undef, params.nepochs)
-    X_, Y_ = DataPreprocessing.prep_data(data)
+    X_, Y_ = prep_data(data)
     opt = Flux.ADAM(params.tr)
     @time for e in ProgressBar(1:params.nepochs)
         ps = Flux.params(model.net)
@@ -99,7 +98,7 @@ function run_FE(input_data, cf, model_params_list, outdir;nepochs=10_000, tr=1e-
     lossfile = "$(params.model_outdir)/tr_loss.txt"
     lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
     CSV.write(lossfile, lossdf)
-    params_df = DataPreprocessing.params_list_to_df(model_params_list)
+    params_df = params_list_to_df(model_params_list)
     CSV.write("$(outdir)/model_params.txt", params_df)
     println("final acc: $(round(final_acc, digits =3))")
     return patient_embed, model, final_acc, tr_loss
@@ -113,5 +112,3 @@ function replace_layer(net::FE_model, new_f1_size::Int)
     return FE_model(new_net, new_emb_1, net.embed_2, net.hl1, net.hl2, net.outpl)
 end
 
-
-end

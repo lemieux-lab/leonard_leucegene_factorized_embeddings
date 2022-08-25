@@ -1,4 +1,3 @@
-module Utils 
 using CSV
 using TSne
 using DataFrames
@@ -72,5 +71,4 @@ function tsne_benchmark(ids, ge_cds, lsc17, patient_embed, cf, outdir, mid)
     CSV.write("$(outdir)/$(mid)_CDS_tsne_df.txt", CDS_tsne_df)
 end
 
-end 
 
