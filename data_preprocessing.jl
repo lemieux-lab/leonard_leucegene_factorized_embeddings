@@ -1,11 +1,11 @@
 using DataFrames
 using Statistics
-using RedefStructs
+# using RedefStructs
 using CSV
-using CUDA
-using Flux 
-using RedefStructs
-using Random
+# using CUDA
+# using Flux 
+# using RedefStructs
+# using Random
 
 
 struct Data
@@ -84,29 +84,6 @@ function load_data(basepath::String; frac_genes=0.5)
     # print(ge_cds_all)
     # ge_cds_split = split_train_test(ge_cds_all)
     return (cf, ge_cds_all, lsc17)
-end
-
-function prep_data(data; device = gpu)
-    ## data preprocessing
-    ### remove index columns, log transform
-    n = length(data.factor_1)
-    m = length(data.factor_2)
-    values = Array{Float32,2}(undef, (1, n * m))
-    #print(size(values))
-    factor_1_index = Array{Int32,1}(undef, max(n * m, 1))
-    factor_2_index = Array{Int32,1}(undef, max(n * m, 1))
-     # d3_index = Array{Int32,1}(undef, n * m)
-    
-    for i in 1:n
-        for j in 1:m
-            index = (i - 1) * m + j 
-            values[1, index] = data.data[i, j]
-            factor_1_index[index] = i # Int
-            factor_2_index[index] = j # Int 
-            # d3_index[index] = data.d3_index[i] # Int 
-        end
-    end
-    return (device(factor_1_index), device(factor_2_index)), device(vec(values))
 end
 
 

@@ -1,0 +1,8 @@
+* Clean up
+* Param record (exp 1, 2, 3...)
+* GPU mem
+* SGD
+  
+* Streamline data reading
+  Raw -> HDF5
+  Document raw import

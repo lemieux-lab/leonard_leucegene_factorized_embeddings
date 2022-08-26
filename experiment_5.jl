@@ -1,17 +1,17 @@
 include("init.jl")
-using RedefStructs
-using Random
-using Flux
-using CUDA
-using Dates
-using SHA
-using ProgressBars
-using Statistics
-using DataFrames
-using CSV 
-using TSne
-using DataStructures
-using MultivariateStats
+# using RedefStructs
+# using Random
+# using Flux
+# using CUDA
+# using Dates
+# using SHA
+# using ProgressBars
+# using Statistics
+# using DataFrames
+# using CSV 
+# using TSne
+# using DataStructures
+# using MultivariateStats
 
 ####################################################
 ####### For training and testing in 3d #############
@@ -25,10 +25,10 @@ using MultivariateStats
 ####################################################
 
 basepath = "/u/sauves/leonard_leucegene_factorized_embeddings/"
-outpath, outdir, model_params_list, accuracy_list = Init.set_dirs(basepath)
+outpath, outdir, model_params_list, accuracy_list = set_dirs(basepath)
 include("data_preprocessing.jl")
 include("embeddings.jl")
-include("utils.jl")
+# include("utils.jl")
 cf_df, ge_cds_all, lsc17_df  = load_data(basepath)
 
 #################################################################################################
@@ -38,17 +38,26 @@ cf_df, ge_cds_all, lsc17_df  = load_data(basepath)
 #################################################################################################
 # using all dataset 
 
-patient_embed_mat, model, final_acc, tr_loss  = run_FE(ge_cds_all, cf_df, model_params_list, outdir; 
-        nepochs = 12_000, 
+dump = true
+params = Params(ge_cds_all, cf_df, outdir; nepochs = 12,
         wd = 1e-9,
         emb_size_1 = 3, 
         emb_size_2 = 25, 
         hl1=50, 
         hl2=50, 
-        dump=true
-        )    
+        dump=dump)
+push!(model_params_list, params)  # get rid of model_params_list -> append
+        #
+X, Y = prep_FE(ge_cds_all)
+
+model = FE_model(length(ge_cds_all.factor_1), length(ge_cds_all.factor_2), params)
+dump_cb = dump_patient_emb(cf_df)
+tr_loss = train!(X, Y, dump_cb, params, model)
+
+post_run(X, Y, model, tr_loss, params)
+
 println("tr acc $(final_acc), loss: $(tr_loss[end])")
-tr_params = model_params_list[end]    
+tr_params = model_params_list[end]
 lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
 lossfile = "$(tr_params.model_outdir)/tr_loss.txt"
 CSV.write(lossfile, lossdf)
@@ -94,7 +103,7 @@ function run_inference(model::FE_model, tr_params::Params, data::Data, cf_df::Da
         "test")   
     push!(model_params_list, params)
 
-    X_, Y_ = prep_data(data)
+    X_, Y_ = prep_FE(data)
     opt = Flux.ADAM(params.tr)
     tst_loss = Array{Float32, 1}(undef, nepochs_tst)
 
