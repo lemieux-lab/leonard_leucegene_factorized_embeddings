@@ -1,8 +1,16 @@
-* Clean up
-* Param record (exp 1, 2, 3...)
-* GPU mem
-* SGD
+* Data 
+  * Copy python files for data generation (.csv)
+  * Update README.md
+* Clean up 
+* Param record (exp 1, 2, 3...) <- LS
+  * Param record structure for future values (dict?) 
+* SGD <- SL
+* GPU mem <- SL
   
-* Streamline data reading
+* Streamline data reading <- (JuBox) LS
   Raw -> HDF5
   Document raw import
+
+* Plot generation 
+  * AlgebraOfGraphics CairoMakie (svg, png, gif) <- LS
+  * system image (!!)
