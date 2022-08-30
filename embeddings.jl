@@ -128,6 +128,39 @@ function train!(X, Y, dump_cb, params, model::FE_model) # todo: sys. call back
     return tr_loss # patient_embed, model, final_acc
 end 
 
+function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000) # todo: sys. call back
+    tr_loss = []
+    opt = Flux.ADAM(params.tr)
+    nminibatches = Int(floor(length(Y) / batchsize))
+    for iter in ProgressBar(1:params.nepochs)
+        ps = Flux.params(model.net)
+        cursor = iter % nminibatches
+        ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, length(Y)))
+        if length(ids) > 1
+            X_, Y_ = (X[1][ids],X[2][ids]), Y[ids]
+            push!(tr_loss, loss(X_, Y_, model, params.wd))
+            gs = gradient(ps) do 
+                loss(X_, Y_, model, params.wd)
+            end
+            Flux.update!(opt,ps, gs)
+            if iter % 1000 == 0
+                #println(tr_loss[iter])
+                dump_cb(model, params, e)
+            #     patient_embed = cpu(model.net[1][1].weight')
+            #     embedfile = "$(params.model_outdir)/training_model_emb_layer_1_epoch_$(e).txt"
+            #     embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
+            #     embeddf.index = data.factor_1
+            #     embeddf.group1 = cf.interest_groups
+            #     if dump
+            #         CSV.write( embedfile, embeddf)
+            #     end
+            end 
+        end
+    end 
+    return tr_loss # patient_embed, model, final_acc
+end 
+
+
 
 function post_run(X, Y, model, tr_loss, params)
     # patient_embed = cpu(model.net[1][1].weight')

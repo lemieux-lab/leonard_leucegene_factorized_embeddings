@@ -1,7 +1,9 @@
 * Data 
-  * Copy python files for data generation (.csv)
-  * Update README.md
-* Clean up 
+  * Copy python files for data generation (.csv) DONE 
+  * Update README.md DONE
+
+* Clean up (ALWAYS) 
+
 * Param record (exp 1, 2, 3...) <- LS
   * Param record structure for future values (dict?) 
 * SGD <- SL

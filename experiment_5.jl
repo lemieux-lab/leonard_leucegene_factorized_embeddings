@@ -39,7 +39,9 @@ cf_df, ge_cds_all, lsc17_df  = load_data(basepath)
 # using all dataset 
 
 dump = true
-params = Params(ge_cds_all, cf_df, outdir; nepochs = 12,
+params = Params(ge_cds_all, cf_df, outdir; 
+        nepochs = 1_000,
+        tr = 1e-3,
         wd = 1e-9,
         emb_size_1 = 3, 
         emb_size_2 = 25, 
@@ -52,7 +54,8 @@ X, Y = prep_FE(ge_cds_all)
 
 model = FE_model(length(ge_cds_all.factor_1), length(ge_cds_all.factor_2), params)
 dump_cb = dump_patient_emb(cf_df)
-tr_loss = train!(X, Y, dump_cb, params, model)
+
+tr_loss = train_SGD!(X, Y, dump_cb, params, model, batchsize = 20_000)
 
 post_run(X, Y, model, tr_loss, params)
 
