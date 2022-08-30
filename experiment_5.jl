@@ -40,7 +40,7 @@ cf_df, ge_cds_all, lsc17_df  = load_data(basepath)
 
 dump = true
 params = Params(ge_cds_all, cf_df, outdir; 
-        nepochs = 1_000,
+        nepochs = 1e6,
         tr = 1e-3,
         wd = 1e-9,
         emb_size_1 = 3, 
@@ -55,11 +55,12 @@ X, Y = prep_FE(ge_cds_all)
 model = FE_model(length(ge_cds_all.factor_1), length(ge_cds_all.factor_2), params)
 dump_cb = dump_patient_emb(cf_df)
 
-tr_loss = train_SGD!(X, Y, dump_cb, params, model, batchsize = 20_000)
+
+tr_loss = train_SGD!(X, Y, dump_cb, params, model, batchsize = 40_000)
 
 post_run(X, Y, model, tr_loss, params)
 
-println("tr acc $(final_acc), loss: $(tr_loss[end])")
+#println("tr acc $(final_acc), loss: $(tr_loss[end])")
 tr_params = model_params_list[end]
 lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
 lossfile = "$(tr_params.model_outdir)/tr_loss.txt"

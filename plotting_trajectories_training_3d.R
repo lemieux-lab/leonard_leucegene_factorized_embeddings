@@ -21,9 +21,9 @@ tr_l
 dev.off()
 
 for (i in 1:nepochs){
-  if (i %% 100 == 0){
+  if (i %% 1000 == 0){
     embed = read.csv(paste(wd, mid, paste("training_model_emb_layer_1_epoch_", i, ".txt",sep =""), sep = "/"))
-    scatter3d = ggplot(embed, aes(x = emb1, y = emb2, z = emb3, color = group1)) + 
+    scatter3d = ggplot(embed, aes(x = emb1, y = emb2, z = emb3, color = interest_groups)) + 
     theme_void() +
     axes_3D() +
     stat_3D() +
