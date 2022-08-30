@@ -29,13 +29,6 @@ struct Params
     end
 end
 
-default_params = Params(10, 1e-3, 1e-3, 
-    17, 50,
-    50, 10,
-    "TMP", "Data/",
-    42, 42, 
-    "TMP_SET"
-)
 
 struct FE_model
     net::Flux.Chain
