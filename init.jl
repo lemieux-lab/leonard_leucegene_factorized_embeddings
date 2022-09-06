@@ -1,8 +1,8 @@
 # module Init
-# using Pkg
-# if isfile("Project.toml") && isfile("Manifest.toml")
-#     Pkg.activate(".")
-# end
+using Pkg
+if isfile("Project.toml") && isfile("Manifest.toml")
+    Pkg.activate(".")
+end
 
 # @time using SHA
 # @time using Random

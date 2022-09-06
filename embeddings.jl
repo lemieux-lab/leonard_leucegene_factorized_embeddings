@@ -90,15 +90,17 @@ function prep_FE(data; device = gpu)
     return (device(factor_1_index), device(factor_2_index)), device(vec(values))
 end
 
-function dump_patient_emb(cf)
+function dump_patient_emb(cf, dump_freq)
     return (model, params, e) -> begin
-        #println(cf)
-        patient_embed = cpu(model.net[1][1].weight')
-        embedfile = "$(params.model_outdir)/training_model_emb_layer_1_epoch_$(e).txt"
-        embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
-        embeddf.index = cf.sampleID
-        embeddf.interest_groups = cf.interest_groups
-        CSV.write( embedfile, embeddf)
+        if e % dump_freq == 0 || e == 1 
+            #println(cf)
+            patient_embed = cpu(model.net[1][1].weight')
+            embedfile = "$(params.model_outdir)/training_model_emb_layer_1_epoch_$(e).txt"
+            embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
+            embeddf.index = cf.sampleID
+            embeddf.interest_groups = cf.interest_groups
+            CSV.write( embedfile, embeddf)
+        end
     end
 end
 
@@ -136,12 +138,11 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000) 
         ps = Flux.params(model.net)
         cursor = (iter -1)  % nminibatches + 1
         ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, length(Y)))
-
+        
         X_, Y_ = (X[1][ids],X[2][ids]), Y[ids]
-        if iter % 1000 == 0
-            push!(tr_loss, loss(X_, Y_, model, params.wd))
-            dump_cb(model, params, iter)
-        end
+        push!(tr_loss, loss(X_, Y_, model, params.wd))
+        dump_cb(model, params, iter)
+        
         gs = gradient(ps) do 
             loss(X_, Y_, model, params.wd)
         end
@@ -163,6 +164,8 @@ function post_run(X, Y, model, tr_loss, params)
     params_df = params_list_to_df(model_params_list)
     CSV.write("$(outdir)/model_params.txt", params_df)
     println("final acc: $(round(final_acc, digits =3))")
+    ## correlation plots with cairo makie
+
 end
 
 function replace_layer(net::FE_model, new_f1_size::Int)
