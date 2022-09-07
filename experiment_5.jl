@@ -71,7 +71,7 @@ run(cmd)
 ###################################################
 ##### Creating training traject. gif animation ####
 ###################################################
-cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*5000_3d_trn.png $(outdir)/$(tr_params.modelid)_training.gif"
+cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*_3d_trn.png $(outdir)/$(tr_params.modelid)_training.gif"
 run(`bash -c $cmd`)
 
 ######################################################
