@@ -42,7 +42,7 @@ for (i in 1:nepochs){
     ggtitle(paste("epoch ", i, "training loss: ", tr_losses$loss[i]))
     
 
-    outpath = paste(wd,mid, paste("frame", sprintf("%05d", i), "_3d_trn.png", sep = ""), sep = "/")
+    outpath = paste(wd,mid, paste("frame", sprintf("%09d", i), "_3d_trn.png", sep = ""), sep = "/")
     loss = ggplot(tr_losses_tiny, aes(x = epoch, y = loss)) + geom_line() + theme_classic() + annotate("text", x = i, y= tr_losses_tiny$loss[cursor], colour = "red", label = "o")
     ggarrange(scatter3d, loss, labels = c("A", "B") , ncol = 2, nrow = 1) + bgcolor("white")
     ggsave(outpath, width = 16, height = 8)

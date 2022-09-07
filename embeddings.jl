@@ -99,6 +99,8 @@ function dump_patient_emb(cf, dump_freq)
             embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
             embeddf.index = cf.sampleID
             embeddf.interest_groups = cf.interest_groups
+            embeddf.sex = cf.Sex
+            embeddf.npm1 = map(x -> ["wt", "mut"][Int(x) + 1], cf_df[:,"NPM1 mutation"])
             CSV.write( embedfile, embeddf)
         end
     end
@@ -164,8 +166,13 @@ function post_run(X, Y, model, tr_loss, params)
     params_df = params_list_to_df(model_params_list)
     CSV.write("$(outdir)/model_params.txt", params_df)
     println("final acc: $(round(final_acc, digits =3))")
-    ## correlation plots with cairo makie
+    ## pred-true scatter plots with cairo makie
+        ## random sample 
+        ## all patients 
 
+    ## metrics outfile 
+        ## pred-true corr all patients
+        ## by group (interest) 
 end
 
 function replace_layer(net::FE_model, new_f1_size::Int)

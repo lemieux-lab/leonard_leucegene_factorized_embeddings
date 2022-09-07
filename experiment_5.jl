@@ -1,17 +1,4 @@
 include("init.jl")
-# using RedefStructs
-# using Random
-# using Flux
-# using CUDA
-# using Dates
-# using SHA
-# using ProgressBars
-# using Statistics
-# using DataFrames
-# using CSV 
-# using TSne
-# using DataStructures
-# using MultivariateStats
 
 ####################################################
 ####### For training and testing in 3d #############
@@ -38,7 +25,7 @@ cf_df, ge_cds_all, lsc17_df  = load_data(basepath)
 #################################################################################################
 # using all dataset 
 params = Params(ge_cds_all, cf_df, outdir; 
-        nepochs = 1e6,
+        nepochs = 2_000_000,
         tr = 1e-3,
         wd = 1e-9,
         emb_size_1 = 3, 
@@ -59,8 +46,30 @@ tr_loss = train_SGD!(X, Y, dump_cb, params, model, batchsize = 40_000)
 
 post_run(X, Y, model, tr_loss, params)
 
-#println("tr acc $(final_acc), loss: $(tr_loss[end])")
 tr_params = model_params_list[end]
+### dump scatter plot
+CSV.write("$(tr_params.model_outdir)/y_true_pred_all.txt",DataFrame(Dict([("y_pred",  cpu(model.net(X))), ("y_true", Y)])))
+
+pair_up(list) = [[x1, x2] for x1 in list for x2 in list if x1 != x2]
+dist(pair) = sqrt(sum(abs2.(pair[:,1] - pair[:,2]))) 
+
+t8_21_pairs = pair_up(findall(cf_df.interest_groups .== "t8_21"))
+inv16_pairs = pair_up(findall(cf_df.interest_groups .== "inv_16"))
+mll_t_pairs = pair_up(findall(cf_df.interest_groups .== "MLL_t"))  
+all_pairs = pair_up(collect(1:tr_params.nsamples))
+
+mll_t_dist = [dist(model.embed_1.weight[:,p]) for p in mll_t_pairs]
+t8_21_dist = [dist(model.embed_1.weight[:,p]) for p in t8_21_pairs]
+inv16_dist = [dist(model.embed_1.weight[:,p]) for p in inv16_pairs]
+all_dist = [dist(model.embed_1.weight[:,p]) for p in all_pairs]
+
+println("Avg - \tAll: $(mean(all_dist))\tt8_21: $(mean(t8_21_dist)) \tinv16: $(mean(inv16_dist))\tmll_t: $(mean(mll_t))")
+println("Std - \tAll: $(std(all_dist))\tt8_21: $(std(t8_21_dist)) \tinv16: $(std(inv16_dist))\tmll_t: $(std(mll_t))")
+
+cmd = `Rscript --vanilla plotting_training_scatterplots_post_run.R $outdir $(tr_params.modelid)`
+run(cmd)
+
+#println("tr acc $(final_acc), loss: $(tr_loss[end])")
 
 #################################################
 ##### Plotting training trajectories & loss #####
@@ -71,7 +80,7 @@ run(cmd)
 ###################################################
 ##### Creating training traject. gif animation ####
 ###################################################
-cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*_3d_trn.png $(outdir)/$(tr_params.modelid)_training.gif"
+cmd = "convert -delay 5 -verbose $(outdir)/$(tr_params.modelid)/*5000_3d_trn.png $(outdir)/$(tr_params.modelid)_training.gif"
 run(`bash -c $cmd`)
 
 ######################################################
