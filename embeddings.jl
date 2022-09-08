@@ -101,6 +101,8 @@ function dump_patient_emb(cf, dump_freq)
             embeddf.interest_groups = cf.interest_groups
             embeddf.sex = cf.Sex
             embeddf.npm1 = map(x -> ["wt", "mut"][Int(x) + 1], cf_df[:,"NPM1 mutation"])
+            embeddf.RNASEQ_protocol = cf.RNASEQ_protocol
+            
             CSV.write( embedfile, embeddf)
         end
     end
