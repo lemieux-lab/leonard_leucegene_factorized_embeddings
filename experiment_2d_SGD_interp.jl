@@ -25,7 +25,7 @@ cf_df, ge_cds_all, lsc17_df  = load_data(basepath)
 #################################################################################################
 # using all dataset 
 params = Params(ge_cds_all, cf_df, outdir; 
-        nepochs = 100_000,
+        nepochs = 10_000,
         tr = 1e-3,
         wd = 1e-9,
         emb_size_1 = 2, 
@@ -50,6 +50,57 @@ tr_params = model_params_list[end]
 ### dump scatter plot
 CSV.write("$(tr_params.model_outdir)/y_true_pred_all.txt",DataFrame(Dict([("y_pred",  cpu(model.net(X))), ("y_true", cpu(Y))])))
 
+
+
+eval_distance(["mll", "inv16", "t8_21", "F", "NPM1"])
+eval_distance("mll")
+=>
+"intra d": list_complete, distance_moy, std_
+"extra d": list_complete, distance_moy, std_
+function eval(f_dist, bool_vec)
+        n = length(bool_vec)
+        intra = Vector{Float32}()
+        extra = Vector{Float32}()
+        for i in 1:n 
+                for j in (i+1):n 
+                        d = f_dist(i,j)
+                        if bool_vec[i] && bool_vec[j] # intra groupe     
+                                push!(intra, d)
+                        else # inter groupe  
+                                push!(extra, d)
+                        end 
+                end 
+        end
+        return intra, extra 
+end 
+
+norm(vector) = sqrt(sum(abs2.(vector)))
+groupe = "t8_21"
+
+function eval_distance(space, groupe)
+        intra, extra = eval(cf_df.interest_groups .== groupe ) do i, j
+                norm(space[i] - space[j])
+        end
+        println("Avg \tIntra: $(mean(intra))\tExtra: $(mean(extra))")
+        println("Std \tIntra: $(std(intra))\tExtra: $(std(extra))")
+        # dump IO 
+        # IO exec R plotting IO  
+        generate_graphic(intra, extra) #cairo makie 
+end 
+
+function eval_distance(groupe)
+        println("ORIGINAL")
+        eval_distance(ge_cds_all, groupe) 
+        println("FE")
+        eval_distance(model, groupe) 
+              
+end 
+
+model[1, :gene]
+
+eval_distance("t8_21")
+ge_cds_all
+
 function eval_distances(model, ge_cds_all, cf_df)
         pair_up(list) = [[x1, x2] for x1 in list for x2 in list if x1 != x2]
         dist(pair) = sqrt(sum(abs2.(pair[:,1] - pair[:,2]))) 
@@ -58,7 +109,7 @@ function eval_distances(model, ge_cds_all, cf_df)
         inv16_pairs = pair_up(findall(cf_df.interest_groups .== "inv_16"))
         mll_t_pairs = pair_up(findall(cf_df.interest_groups .== "MLL_t"))  
         all_pairs = pair_up(collect(1:tr_params.nsamples))
-
+        
         FE_mll_t_dist = [dist(model.embed_1.weight[:,p]) for p in mll_t_pairs]
         FE_t8_21_dist = [dist(model.embed_1.weight[:,p]) for p in t8_21_pairs]
         FE_inv16_dist = [dist(model.embed_1.weight[:,p]) for p in inv16_pairs]

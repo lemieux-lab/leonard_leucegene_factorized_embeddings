@@ -39,6 +39,14 @@ struct FE_model
     outpl::Flux.Dense
 end
 
+Base.getindex(model::FE_model, i::Int) = model.embed_1.weight[:, i]  
+function Base.getindex(model::FE_model, i::Int, embed_type::Symbol) 
+    if embed_type == :gene
+        model.embed_2.weight[:, i]
+    else     
+        model.embed_1.weight[:, i]  
+    end 
+end 
 function FE_model(factor_1_size::Int, factor_2_size::Int, params::Params)
     emb_size_1 = params.emb_size_1
     emb_size_2 = params.emb_size_2
@@ -102,7 +110,7 @@ function dump_patient_emb(cf, dump_freq)
             embeddf.sex = cf.Sex
             embeddf.npm1 = map(x -> ["wt", "mut"][Int(x) + 1], cf_df[:,"NPM1 mutation"])
             embeddf.RNASEQ_protocol = cf.RNASEQ_protocol
-            
+
             CSV.write( embedfile, embeddf)
         end
     end

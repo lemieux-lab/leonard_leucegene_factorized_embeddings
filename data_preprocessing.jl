@@ -15,6 +15,8 @@ struct Data
     factor_2::Array
 end
 
+Base.getindex(d::Data, i::Int) = d.data[i,:]
+
 struct FoldData
     train::Data
     train_ids::Array
