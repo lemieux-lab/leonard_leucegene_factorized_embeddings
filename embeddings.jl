@@ -158,6 +158,12 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000) 
         gs = gradient(ps) do 
             loss(X_, Y_, model, params.wd)
         end
+        g_norm = norm(gs)
+        c = 0.5
+        g_norm > c && (gs = gs ./ g_norm .* c)
+
+        # println(norm(gs))
+
         Flux.update!(opt,ps, gs)
         
     end 
