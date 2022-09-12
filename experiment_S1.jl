@@ -5,8 +5,8 @@ include("init.jl")
 basepath = "."
 outpath, outdir, model_params_list, accuracy_list = set_dirs(basepath)
 
-include("embeddings.jl")
 include("utils.jl")
+include("embeddings.jl")
 cf_df, ge_cds_all, lsc17_df = load_data(basepath, frac_genes = 0.5) 
 index = ge_cds_all.factor_1
 cols = ge_cds_all.factor_2
@@ -21,7 +21,7 @@ cols = ge_cds_all.factor_2
 # )   
 
 params = Params(ge_cds_all, cf_df, outdir; 
-    nepochs = 100_000,
+    nepochs = 1_000,
     tr = 1e-2,
     wd = 1e-9,
     emb_size_1 = 3, 
@@ -37,7 +37,10 @@ step_size_cb = 100 # steps interval between each dump call
 dump_cb = dump_patient_emb(cf_df, step_size_cb)
 
 tr_loss = train_SGD!(X, Y, dump_cb, params, model, batchsize = 80_000)
+restart = 2_000
+d = BSON.load("$(params.model_outdir)/model_$(zpad(restart))")
 
+tr_loss = train_SGD!(X, Y, dump_cb, params, d["model"], batchsize = 80_000, restart = restart)
 
 using CairoMakie
 using AlgebraOfGraphics

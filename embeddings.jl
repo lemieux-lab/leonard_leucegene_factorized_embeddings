@@ -2,6 +2,7 @@ using Flux
 using CUDA
 using ProgressBars
 using SHA
+using BSON 
 
 include("data_preprocessing.jl")
 
@@ -112,6 +113,8 @@ function dump_patient_emb(cf, dump_freq)
             embeddf.RNASEQ_protocol = cf.RNASEQ_protocol
 
             CSV.write( embedfile, embeddf)
+            # saving model in bson (serialised format for restart and investigation)
+            bson("$(params.model_outdir)/model_$(zpad(e))", Dict("model"=>model))
         end
     end
 end
@@ -142,7 +145,7 @@ function train!(X, Y, dump_cb, params, model::FE_model) # todo: sys. call back
     return tr_loss # patient_embed, model, final_acc
 end 
 
-function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000) # todo: sys. call back
+function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, restart::Int=0) # todo: sys. call back
     tr_loss = []
     opt = Flux.ADAM(params.tr)
     nminibatches = Int(floor(length(Y) / batchsize))
@@ -153,20 +156,21 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000) 
         
         X_, Y_ = (X[1][ids],X[2][ids]), Y[ids]
         push!(tr_loss, loss(X_, Y_, model, params.wd))
-        dump_cb(model, params, iter)
+        dump_cb(model, params, iter + restart)
         
         gs = gradient(ps) do 
             loss(X_, Y_, model, params.wd)
         end
-        g_norm = norm(gs)
-        c = 0.5
-        g_norm > c && (gs = gs ./ g_norm .* c)
+        # g_norm = norm(gs)
+        # c = 0.5
+        # g_norm > c && (gs = gs ./ g_norm .* c)
 
         # println(norm(gs))
 
         Flux.update!(opt,ps, gs)
         
     end 
+    dump_cb(model, params, params.nepochs + restart)
     return tr_loss # patient_embed, model, final_acc
 end 
 
