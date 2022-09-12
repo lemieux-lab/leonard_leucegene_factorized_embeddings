@@ -3,6 +3,8 @@ using TSne
 using DataFrames
 using MultivariateStats
 
+norm(vector) = sqrt(sum(abs2.(vector)))
+
 function dump_accuracy(model_params_list, accuracy_list, outdir)
     acc_df = Utils.DataFrame(Dict([("modelid", [p.modelid for p in model_params_list]), ("pearson_corr", accuracy_list)]))
     CSV.write("$(outdir)/model_accuracies.txt", acc_df)

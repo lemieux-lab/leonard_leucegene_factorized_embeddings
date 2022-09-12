@@ -74,7 +74,7 @@ function eval(f_dist, bool_vec)
         return intra, extra 
 end 
 
-norm(vector) = sqrt(sum(abs2.(vector)))
+
 groupe = "t8_21"
 
 function eval_distance(space, groupe)
