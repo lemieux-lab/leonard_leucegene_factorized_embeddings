@@ -98,10 +98,10 @@ function log_transf_high_variance(df::DataFrame; frac_genes = 0.1)
     # log transforming
     data_full = log10.(Array(data_full) .+ 1)
     # remove least varying genes
-    ge_var = var(data_full,dims = 1) 
-    ge_var_med = median(ge_var)
+    ge_var = var(data_full, dims = 1)[1,:]
+    ge_var_bp = quantile(ge_var, 1.0 - frac_genes)
     # high variance only 
-    hvg = getindex.(findall(ge_var .> ge_var_med),2)[1:Int(floor(end * frac_genes))]
+    hvg = findall(ge_var .> ge_var_bp)
     data_full = data_full[:,hvg]
     cols = cols[hvg]
     new_data = Data("full", data_full, index, cols)
