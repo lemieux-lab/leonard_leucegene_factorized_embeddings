@@ -40,10 +40,10 @@ struct FE_model
 end
 
 Base.getindex(model::FE_model, i::Int) = model.embed_1.weight[:, i]  
-function Base.getindex(model::FE_model, i::Int, embed_type::Symbol) 
+function Base.getindex(model::FE_model, i::Int; embed_type::Symbol = :patient) 
     if embed_type == :gene
         model.embed_2.weight[:, i]
-    else     
+    elseif embed_type == :patient    
         model.embed_1.weight[:, i]  
     end 
 end 
