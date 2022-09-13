@@ -3,7 +3,6 @@ using TSne
 using DataFrames
 using MultivariateStats
 zpad(n::Int) = lpad(string(n),9,'0')
-norm(vector::Vector) = sqrt(sum(abs2.(vector)))
 
 function dump_accuracy(model_params_list, accuracy_list, outdir)
     acc_df = Utils.DataFrame(Dict([("modelid", [p.modelid for p in model_params_list]), ("pearson_corr", accuracy_list)]))

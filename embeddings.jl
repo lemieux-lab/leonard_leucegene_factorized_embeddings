@@ -3,6 +3,7 @@ using CUDA
 using ProgressBars
 using SHA
 using BSON 
+using LinearAlgebra
 
 include("data_preprocessing.jl")
 
@@ -19,14 +20,15 @@ struct Params
     insize::Int64
     nsamples::Int64
     set::String
+    clip::Bool
 
     function Params(input_data::Data, cf, outdir;
         nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10, 
-        dump=true)
+        clip=true)
         modelid = "FE_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
         model_outdir = "$(outdir)/$(modelid)"
         mkdir(model_outdir)
-        return new(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(input_data.factor_2), length(input_data.factor_1), input_data.name)
+        return new(nepochs, tr, wd, emb_size_1, emb_size_2, hl1, hl2, modelid, model_outdir, length(input_data.factor_2), length(input_data.factor_1), input_data.name, clip)
     end
 end
 
@@ -65,8 +67,19 @@ function FE_model(factor_1_size::Int, factor_2_size::Int, params::Params)
     return FE_model(net, emb_layer_1, emb_layer_2, hl1, hl2, outpl)
 end
 
-function FE_model(p::Params)
+function cp(model::FE_model)
+    emb_layer_1 = cpu(model.embed_1)
+    emb_layer_2 = cpu(model.embed_2)
+    hl1 = cpu(model.hl1)
+    hl2 = cpu(model.hl2)
+    outpl = cpu(model.outpl)
+    net = gpu(Flux.Chain(
+        Flux.Parallel(vcat, emb_layer_1, emb_layer_2),
+        hl1, hl2, outpl,
+        vec))
+    return FE_model(net, emb_layer_1, emb_layer_2, hl1, hl2, outpl)
 end
+
 
 function l2_penalty(model::FE_model)
     l2 = sum(abs2, model.embed_1.weight) + sum(abs2, model.embed_2.weight) + sum(abs2, model.hl1.weight) + sum(abs2, model.hl2.weight) + sum(abs2, model.outpl.weight)
@@ -161,11 +174,15 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, 
         gs = gradient(ps) do 
             loss(X_, Y_, model, params.wd)
         end
-        # g_norm = norm(gs)
-        # c = 0.5
-        # g_norm > c && (gs = gs ./ g_norm .* c)
-
-        # println(norm(gs))
+        if params.clip 
+            g_norm = norm(gs)
+            c = 0.5
+            g_norm > c && (gs = gs ./ g_norm .* c)
+            # if g_norm > c
+            #     println("EPOCH: $(iter) gradient norm $(g_norm)")
+            #     println("EPOCH: $(iter) new grad norm $(norm(gs ./ g_norm .* c))")
+            # end 
+        end 
 
         Flux.update!(opt,ps, gs)
         

@@ -52,7 +52,8 @@ function params_list_to_df(pl)
     ("nepochs", [p.nepochs for p in pl]),
     ("insize", [p.insize for p in pl]),
     ("nsamples", [p.nsamples for p in pl]),
-    ("set", [p.set for p in pl])
+    ("set", [p.set for p in pl]),
+    ("gr_clip", [p.clip for p in pl])
     ]))
     return df
 end

@@ -11,54 +11,73 @@ cf_df, ge_cds_all, lsc17_df = load_data(basepath, frac_genes = 0.5)
 index = ge_cds_all.factor_1
 cols = ge_cds_all.factor_2
 
-# patient_embed_mat, final_acc = run_FE(ge_cds_all, cf_df, model_params_list, outdir; 
-#     nepochs = 10000, 
-#     emb_size_1 = 2, 
-#     emb_size_2 = 2, 
-#     hl1=10, 
-#     hl2=5, 
-#     dump=true
-# )   
+X, Y = prep_FE(ge_cds_all)
 
-params = Params(ge_cds_all, cf_df, outdir; 
-    nepochs = 1_000,
+clipped_params = Params(ge_cds_all, cf_df, outdir; 
+    nepochs = 100000,
     tr = 1e-2,
     wd = 1e-9,
-    emb_size_1 = 3, 
+    emb_size_1 = 2, 
     emb_size_2 = 25, 
     hl1=50, 
     hl2=25, 
-    dump=true)
+    clip=true)
 
-X, Y = prep_FE(ge_cds_all)
+non_clipped_params = Params(ge_cds_all, cf_df, outdir; 
+    nepochs = 100000,
+    tr = 1e-2,
+    wd = 1e-9,
+    emb_size_1 = 2, 
+    emb_size_2 = 25, 
+    hl1=50, 
+    hl2=25, 
+    clip=false)
 
-model = FE_model(length(ge_cds_all.factor_1), length(ge_cds_all.factor_2), params)
+push!(model_params_list, non_clipped_params)
+push!(model_params_list, clipped_params) 
+
 step_size_cb = 100 # steps interval between each dump call
 dump_cb = dump_patient_emb(cf_df, step_size_cb)
 
-tr_loss = train_SGD!(X, Y, dump_cb, params, model, batchsize = 80_000)
-restart = 2_000
-d = BSON.load("$(params.model_outdir)/model_$(zpad(restart))")
+model_clipped = FE_model(length(ge_cds_all.factor_1), length(ge_cds_all.factor_2), clipped_params)
+# deepcopy through cpu transfer  
+model_non_clipped = cp(model_clipped)
 
-tr_loss = train_SGD!(X, Y, dump_cb, params, d["model"], batchsize = 80_000, restart = restart)
+# train 
+loss_non_clipped = train_SGD!(X, Y, dump_cb, non_clipped_params, model_non_clipped, batchsize = 80_000)
+post_run(X, Y, model_non_clipped, loss_non_clipped, non_clipped_params)
+cmd = `Rscript --vanilla plotting_trajectories_training_2d.R $outdir $(non_clipped_params.modelid) $(step_size_cb)`
+run(cmd)
+cmd = "convert -delay 5 -verbose $(outdir)/$(non_clipped_params.modelid)/*_2d_trn.png $(outdir)/$(non_clipped_params.modelid)_training.gif"
+run(`bash -c $cmd`)
 
-using CairoMakie
-using AlgebraOfGraphics
-using DataFrames
-using Flux
-set_aog_theme!()
+loss_clipped = train_SGD!(X, Y, dump_cb, clipped_params, model_clipped, batchsize = 80_000)
+post_run(X, Y, model_clipped, loss_clipped, clipped_params)
+cmd = `Rscript --vanilla plotting_trajectories_training_2d.R $outdir $(clipped_params.modelid) $(step_size_cb)`
+run(cmd)
+cmd = "convert -delay 5 -verbose $(outdir)/$(clipped_params.modelid)/*_2d_trn.png $(outdir)/$(clipped_params.modelid)_training.gif"
+run(`bash -c $cmd`)
 
-# df = DataFrame(patient_embed_mat[:,:], :auto)
-# p = data(df) * mapping(:x1) * mapping(:x2)
-# draw(p)
 
-# include("data_preprocessing.jl")
-# X_, Y_ = DataPreprocessing.prep_data(ge_cds_all)
-y = cpu(model.net(X))
+# tr_loss = train_SGD!(X, Y, dump_cb, params, d["model"], batchsize = 80_000, restart = restart)
 
-df = DataFrame(y = y, Y = cpu(Y))
-p = data(df) * mapping(:y, :Y) * AlgebraOfGraphics.density(npoints=100)
-draw(p * visual(Heatmap), ; axis=(width=1024, height=1024))
+# using CairoMakie
+# using AlgebraOfGraphics
+# using DataFrames
+# using Flux
+# set_aog_theme!()
+
+# # df = DataFrame(patient_embed_mat[:,:], :auto)
+# # p = data(df) * mapping(:x1) * mapping(:x2)
+# # draw(p)
+
+# # include("data_preprocessing.jl")
+# # X_, Y_ = DataPreprocessing.prep_data(ge_cds_all)
+# y = cpu(model.net(X))
+
+# df = DataFrame(y = y, Y = cpu(Y))
+# p = data(df) * mapping(:y, :Y) * AlgebraOfGraphics.density(npoints=100)
+# draw(p * visual(Heatmap), ; axis=(width=1024, height=1024))
 
 # using LinearAlgebra
 
@@ -94,14 +113,15 @@ function eval_distance(space, groupe)
 end 
 
 function eval_distance(groupe)
+    println(groupe)
     println("ORIGINAL")
     eval_distance(ge_cds_all, groupe) 
-    println("FE")
-    eval_distance(model, groupe) 
-          
+    println("FE (w. grad. clipping)")
+    eval_distance(model_clipped, groupe) 
+    println("FE (no grad. clipping)")
+    eval_distance(model_non_clipped, groupe)       
 end 
 
-model[1, :gene]
-
 eval_distance("t8_21")
-ge_cds_all
+eval_distance("MLL_t")
+eval_distance("inv_16")
