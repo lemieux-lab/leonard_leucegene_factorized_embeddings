@@ -4,6 +4,7 @@ using ProgressBars
 using SHA
 using BSON 
 using LinearAlgebra
+using Random
 
 include("data_preprocessing.jl")
 
@@ -158,15 +159,20 @@ function train!(X, Y, dump_cb, params, model::FE_model) # todo: sys. call back
     return tr_loss # patient_embed, model, final_acc
 end 
 
+
 function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, restart::Int=0) # todo: sys. call back
     tr_loss = []
     opt = Flux.ADAM(params.tr)
     nminibatches = Int(floor(length(Y) / batchsize))
+    shuffled_ids = shuffle(collect(1:length(Y)))
     for iter in ProgressBar(1:params.nepochs)
         ps = Flux.params(model.net)
         cursor = (iter -1)  % nminibatches + 1
-        ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, length(Y)))
-        
+        if cursor == 1 
+            shuffled_ids = shuffle(collect(1:length(Y)))
+        end 
+        mb_ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, length(Y)))
+        ids = shuffled_ids[mb_ids]
         X_, Y_ = (X[1][ids],X[2][ids]), Y[ids]
         push!(tr_loss, loss(X_, Y_, model, params.wd))
         dump_cb(model, params, iter + restart)

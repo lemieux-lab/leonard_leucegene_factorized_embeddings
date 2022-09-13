@@ -7,20 +7,20 @@ outpath, outdir, model_params_list, accuracy_list = set_dirs(basepath)
 
 include("utils.jl")
 include("embeddings.jl")
-cf_df, ge_cds_all, lsc17_df = load_data(basepath, frac_genes = 0.5) 
+cf_df, ge_cds_all, lsc17_df = load_data(basepath, frac_genes = 0.5, avg_norm = true) 
 index = ge_cds_all.factor_1
 cols = ge_cds_all.factor_2
 
 X, Y = prep_FE(ge_cds_all)
 
 clipped_params = Params(ge_cds_all, cf_df, outdir; 
-    nepochs = 100000,
+    nepochs = 40_000,
     tr = 1e-2,
-    wd = 1e-9,
+    wd = 1e-8,
     emb_size_1 = 2, 
-    emb_size_2 = 25, 
+    emb_size_2 = 50, 
     hl1=50, 
-    hl2=25, 
+    hl2=50, 
     clip=true)
 
 non_clipped_params = Params(ge_cds_all, cf_df, outdir; 
@@ -33,23 +33,23 @@ non_clipped_params = Params(ge_cds_all, cf_df, outdir;
     hl2=25, 
     clip=false)
 
-push!(model_params_list, non_clipped_params)
+# push!(model_params_list, non_clipped_params)
 push!(model_params_list, clipped_params) 
 
-step_size_cb = 100 # steps interval between each dump call
+step_size_cb = 500 # steps interval between each dump call
 dump_cb = dump_patient_emb(cf_df, step_size_cb)
 
 model_clipped = FE_model(length(ge_cds_all.factor_1), length(ge_cds_all.factor_2), clipped_params)
-# deepcopy through cpu transfer  
-model_non_clipped = cp(model_clipped)
+# deepcopy   
+# model_non_clipped = deepcopy(model_clipped)
 
 # train 
-loss_non_clipped = train_SGD!(X, Y, dump_cb, non_clipped_params, model_non_clipped, batchsize = 80_000)
-post_run(X, Y, model_non_clipped, loss_non_clipped, non_clipped_params)
-cmd = `Rscript --vanilla plotting_trajectories_training_2d.R $outdir $(non_clipped_params.modelid) $(step_size_cb)`
-run(cmd)
-cmd = "convert -delay 5 -verbose $(outdir)/$(non_clipped_params.modelid)/*_2d_trn.png $(outdir)/$(non_clipped_params.modelid)_training.gif"
-run(`bash -c $cmd`)
+# loss_non_clipped = train_SGD!(X, Y, dump_cb, non_clipped_params, model_non_clipped, batchsize = 80_000)
+# post_run(X, Y, model_non_clipped, loss_non_clipped, non_clipped_params)
+# cmd = `Rscript --vanilla plotting_trajectories_training_2d.R $outdir $(non_clipped_params.modelid) $(step_size_cb)`
+# run(cmd)
+# cmd = "convert -delay 5 -verbose $(outdir)/$(non_clipped_params.modelid)/*_2d_trn.png $(outdir)/$(non_clipped_params.modelid)_training.gif"
+# run(`bash -c $cmd`)
 
 loss_clipped = train_SGD!(X, Y, dump_cb, clipped_params, model_clipped, batchsize = 80_000)
 post_run(X, Y, model_clipped, loss_clipped, clipped_params)
@@ -118,10 +118,32 @@ function eval_distance(groupe)
     eval_distance(ge_cds_all, groupe) 
     println("FE (w. grad. clipping)")
     eval_distance(model_clipped, groupe) 
-    println("FE (no grad. clipping)")
-    eval_distance(model_non_clipped, groupe)       
+    # println("FE (no grad. clipping)")
+    # eval_distance(model_non_clipped, groupe)       
 end 
 
 eval_distance("t8_21")
 eval_distance("MLL_t")
 eval_distance("inv_16")
+
+include("interpolation.jl")
+
+selected_sample = findall(x -> x == "inv_16", cf_df.interest_groups)[4]
+sample_true_expr = ge_cds_all.data[selected_sample,:]
+tr_params = clipped_params
+model = model_clipped
+grid_size =  50
+grid, grid_genes = make_grid(tr_params.insize, grid_size=grid_size)
+true_expr = ge_cds_all.data[selected_sample,:]
+pred_expr = model.net((Array{Int32}(ones(tr_params.insize) * selected_sample), collect(1:tr_params.insize)))
+corrs_pred_expr = ones(abs2(grid_size + 1))
+corrs_true_expr = ones(abs2(grid_size + 1))
+corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_$(tr_params.modelid)_pred_expr_corrs.txt"
+res= interpolate(model, tr_params, grid_genes, outdir, corr_fname ;grid_size = grid_size)
+CSV.write(corr_fname, DataFrame(Dict([("col$(i)", res[:,i]) for i in 1:size(res)[2] ])))
+run(`Rscript --vanilla plotting_corrs.R $outdir $(tr_params.modelid) $(cf_df.sampleID[selected_sample])`)
+
+### dump scatter plot
+CSV.write("$(tr_params.model_outdir)/y_true_pred_all.txt",DataFrame(Dict([("y_pred",  cpu(model.net(X))), ("y_true", cpu(Y))])))
+cmd = `Rscript --vanilla plotting_training_scatterplots_post_run.R $outdir $(tr_params.modelid)`
+run(cmd)

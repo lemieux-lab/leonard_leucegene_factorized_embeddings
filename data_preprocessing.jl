@@ -73,7 +73,7 @@ function get_interest_groups(target)
     end
 end
 
-function load_data(basepath::String; frac_genes=0.5)
+function load_data(basepath::String; frac_genes=0.5, avg_norm = false)
     clinical_fname = "$(basepath)/Data/LEUCEGENE/lgn_pronostic_CF"
     ge_cds_fname = "$(basepath)/Data/LEUCEGENE/lgn_pronostic_GE_CDS_TPM.csv"
     ge_lsc17_fname = "$(basepath)/Data/SIGNATURES/LSC17_lgn_pronostic_expressions.csv"
@@ -83,7 +83,7 @@ function load_data(basepath::String; frac_genes=0.5)
     cf.interest_groups = interest_groups
     ge_cds_raw_data = CSV.read(ge_cds_fname, DataFrame)
     lsc17 = CSV.read(ge_lsc17_fname, DataFrame)
-    ge_cds_all = log_transf_high_variance(ge_cds_raw_data, frac_genes=frac_genes)
+    ge_cds_all = log_transf_high_variance(ge_cds_raw_data, frac_genes=frac_genes, avg_norm = avg_norm)
     # print(ge_cds_all)
     # ge_cds_split = split_train_test(ge_cds_all)
     return (cf, ge_cds_all, lsc17)
@@ -92,7 +92,7 @@ end
 
 
 
-function log_transf_high_variance(df::DataFrame; frac_genes = 0.1)
+function log_transf_high_variance(df::DataFrame; frac_genes = 0.1, avg_norm=false)
     index = df[:,1]
     data_full = df[:,2:end] 
     cols = names(data_full)
@@ -104,6 +104,9 @@ function log_transf_high_variance(df::DataFrame; frac_genes = 0.1)
     # high variance only 
     hvg = findall(ge_var .> ge_var_bp)
     data_full = data_full[:,hvg]
+    if avg_norm 
+        data_full = data_full .- mean(data_full, dims = 1)
+    end
     cols = cols[hvg]
     new_data = Data("full", data_full, index, cols)
     return new_data

@@ -29,7 +29,7 @@ for (i in 1:nepochs){
     embed = read.csv(paste(wd, mid, paste("training_model_emb_layer_1_epoch_", i, ".txt",sep =""), sep = "/"))
     
     scatter = ggplot(embed, aes(x = emb1, y = emb2, col = interest_groups)) + geom_point() + 
-    theme_classic() + coord_cartesian(xlim = c(-3.5,3.5), ylim = c(-3.5,3.5)) +
+    theme_classic() + coord_cartesian(xlim = c(-5,5), ylim = c(-5,5)) +
     scale_color_manual(values = c("orange", "darkcyan", "grey", "magenta")) + 
     ggtitle(paste("epoch ", i, "training loss: ", tr_losses$loss[i]))
     outpath = paste(wd,mid, paste("frame", sprintf("%09d", i), "_2d_trn.png", sep = ""), sep = "/")
