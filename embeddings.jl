@@ -114,19 +114,21 @@ function prep_FE(data; device = gpu)
 end
 
 function dump_patient_emb(cf, dump_freq)
-    return (model, params, e) -> begin
+    return (model, params, e; phase = "training") -> begin
         if e % dump_freq == 0 || e == 1 
+            if phase == "training"
             #println(cf)
-            patient_embed = cpu(model.net[1][1].weight')
-            embedfile = "$(params.model_outdir)/training_model_emb_layer_1_epoch_$(e).txt"
-            embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
-            embeddf.index = cf.sampleID
-            embeddf.interest_groups = cf.interest_groups
-            embeddf.sex = cf.Sex
-            embeddf.npm1 = map(x -> ["wt", "mut"][Int(x) + 1], cf_df[:,"NPM1 mutation"])
-            embeddf.RNASEQ_protocol = cf.RNASEQ_protocol
+                patient_embed = cpu(model.net[1][1].weight')
+                embedfile = "$(params.model_outdir)/$(phase)_model_emb_layer_1_epoch_$(e).txt"
+                embeddf = DataFrame(Dict([("emb$(i)", patient_embed[:,i]) for i in 1:size(patient_embed)[2]])) 
+                embeddf.index = cf.sampleID
+                embeddf.interest_groups = cf.interest_groups
+                embeddf.sex = cf.Sex
+                embeddf.npm1 = map(x -> ["wt", "mut"][Int(x) + 1], cf_df[:,"NPM1 mutation"])
+                embeddf.RNASEQ_protocol = cf.RNASEQ_protocol
 
-            CSV.write( embedfile, embeddf)
+                CSV.write( embedfile, embeddf)
+            end 
             # saving model in bson (serialised format for restart and investigation)
             bson("$(params.model_outdir)/model_$(zpad(e))", Dict("model"=>model))
         end
@@ -197,7 +199,21 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, 
     return tr_loss # patient_embed, model, final_acc
 end 
 
-
+function inference(X, Y, dump_cb, params, model::FE_model; nepochs = 10_000)
+    tst_loss = []
+    opt = Flux.ADAM(params.tr)
+    for iter in ProgressBar(1:nepochs)
+        ps = Flux.params(model.net[1])
+        push!(tst_loss, loss(X, Y, model, params.wd))
+        dump_cb(model, params, iter; phase = "test")
+        gs = gradient(ps) do 
+            loss(X, Y, model, params.wd)
+        end
+        Flux.update!(opt,ps, gs)
+    end 
+    dump_cb(model, params, nepochs ;phase = "test")
+    return tst_loss 
+end 
 
 function post_run(X, Y, model, tr_loss, params)
     # patient_embed = cpu(model.net[1][1].weight')

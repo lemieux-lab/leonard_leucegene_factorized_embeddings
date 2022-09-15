@@ -16,6 +16,9 @@ struct Data
 end
 
 Base.getindex(d::Data, i::Int) = d.data[i,:]
+function Base.getindex(d::Data, ids::Vector)
+    return Data(d.name, d.data[ids,:], d.factor_1[ids], d.factor_2)
+end 
 
 struct FoldData
     train::Data

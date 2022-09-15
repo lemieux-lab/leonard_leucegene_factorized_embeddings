@@ -57,93 +57,60 @@ cmd = `Rscript --vanilla plotting_trajectories_training_2d.R $outdir $(clipped_p
 run(cmd)
 cmd = "convert -delay 5 -verbose $(outdir)/$(clipped_params.modelid)/*_2d_trn.png $(outdir)/$(clipped_params.modelid)_training.gif"
 run(`bash -c $cmd`)
-
-
-# tr_loss = train_SGD!(X, Y, dump_cb, params, d["model"], batchsize = 80_000, restart = restart)
-
-# using CairoMakie
-# using AlgebraOfGraphics
-# using DataFrames
-# using Flux
-# set_aog_theme!()
-
-# # df = DataFrame(patient_embed_mat[:,:], :auto)
-# # p = data(df) * mapping(:x1) * mapping(:x2)
-# # draw(p)
-
-# # include("data_preprocessing.jl")
-# # X_, Y_ = DataPreprocessing.prep_data(ge_cds_all)
-# y = cpu(model.net(X))
-
-# df = DataFrame(y = y, Y = cpu(Y))
-# p = data(df) * mapping(:y, :Y) * AlgebraOfGraphics.density(npoints=100)
-# draw(p * visual(Heatmap), ; axis=(width=1024, height=1024))
-
-# using LinearAlgebra
-
-function eval(f_dist, bool_vec)
-    n = length(bool_vec)
-    intra = Vector{Float32}()
-    extra = Vector{Float32}()
-    for i in 1:n 
-            for j in (i+1):n 
-                    d = f_dist(i,j)
-                    if bool_vec[i] && bool_vec[j] # intra groupe     
-                            push!(intra, d)
-                    else # inter groupe  
-                            push!(extra, d)
-                    end 
-            end 
-    end
-    return intra, extra 
-end 
-
-# norm(vector) = sqrt(sum(abs2.(vector)))
-groupe = "t8_21"
-
-function eval_distance(space, groupe)
-    intra, extra = eval(cf_df.interest_groups .== groupe ) do i, j
-            norm(space[i] - space[j])
-    end
-    println("Avg \tIntra: $(mean(intra))\tExtra: $(mean(extra))")
-    println("Std \tIntra: $(std(intra))\tExtra: $(std(extra))")
-    # dump IO 
-    # IO exec R plotting IO  
-    # generate_graphic(intra, extra) #cairo makie 
-end 
-
-function eval_distance(groupe)
-    println(groupe)
-    println("ORIGINAL")
-    eval_distance(ge_cds_all, groupe) 
-    println("FE (w. grad. clipping)")
-    eval_distance(model_clipped, groupe) 
-    # println("FE (no grad. clipping)")
-    # eval_distance(model_non_clipped, groupe)       
-end 
-
-eval_distance("t8_21")
-eval_distance("MLL_t")
-eval_distance("inv_16")
-
-include("interpolation.jl")
-
-selected_sample = findall(x -> x == "inv_16", cf_df.interest_groups)[4]
-sample_true_expr = ge_cds_all.data[selected_sample,:]
-tr_params = clipped_params
-model = model_clipped
-grid_size =  50
-grid, grid_genes = make_grid(tr_params.insize, grid_size=grid_size)
-true_expr = ge_cds_all.data[selected_sample,:]
-pred_expr = model.net((Array{Int32}(ones(tr_params.insize) * selected_sample), collect(1:tr_params.insize)))
-corrs_pred_expr = ones(abs2(grid_size + 1))
-corrs_true_expr = ones(abs2(grid_size + 1))
-corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_$(tr_params.modelid)_pred_expr_corrs.txt"
-res= interpolate(model, tr_params, grid_genes, outdir, corr_fname ;grid_size = grid_size)
-CSV.write(corr_fname, DataFrame(Dict([("col$(i)", res[:,i]) for i in 1:size(res)[2] ])))
-run(`Rscript --vanilla plotting_corrs.R $outdir $(tr_params.modelid) $(cf_df.sampleID[selected_sample])`)
-
 ### dump scatter plot
 CSV.write("$(tr_params.model_outdir)/y_true_pred_all.txt",DataFrame(Dict([("y_pred",  cpu(model.net(X))), ("y_true", cpu(Y))])))
 cmd = `Rscript --vanilla plotting_training_scatterplots_post_run.R $outdir $(tr_params.modelid)`
 run(cmd)
+
+# tr_loss = train_SGD!(X, Y, dump_cb, params, d["model"], batchsize = 80_000, restart = restart)
+
+groupe = "t8_21"
+include("utils.jl")
+eval_distance(ge_cds_all, model_clipped, "t8_21", cf_df)
+eval_distance(ge_cds_all, model_clipped, "MLL_t", cf_df)
+eval_distance(ge_cds_all, model_clipped, "inv_16", cf_df)
+
+include("interpolation.jl")
+
+selected_sample = findall(x -> x == "inv_16", cf_df.interest_groups)[4]
+
+res= interpolate(
+    selected_sample,
+    model_clipped, 
+    clipped_params, 
+    outdir, 
+    grid_size = 50)
+
+#######################################################################################
+######                   ##############################################################
+######      INFERENCE    ############################################################## 
+######                   ##############################################################
+#######################################################################################
+include("embeddings.jl")
+include("data_preprocessing.jl")
+tr_params = clipped_params
+nepochs_tst = 10_000
+dump_cb = dump_patient_emb(cf_df, step_size_cb)
+
+inference_mdl = replace_layer(model_clipped, 1)
+test_set = ge_cds_all[[selected_sample]]
+X_t, Y_t = prep_FE(test_set)
+
+cor(cpu(model_clipped.net(X)), cpu(Y))
+cor(cpu(model_clipped.net(X_t)), cpu(Y_t))
+cor(cpu(inference_mdl.net(X_t)), Y_t)
+
+tst_loss = inference(X, Y, dump_cb, tr_params, inference_mdl, nepochs = nepochs_tst)
+X1, Y1 = prep_FE(ge_cds_all[[3]])
+X2, Y2 = prep_FE(ge_cds_all[[2]])
+
+cor(cpu(inference_mdl.net(X1)), Y)
+cor(cpu(inference_mdl.net(X2)), Y)
+
+
+model_clipped.embed_1.weight[:,selected_sample]
+inference_mdl.embed_1.weight
+
+sum(model_clipped.embed_1.weight .== inference_mdl.embed_1.weight)
+model_clipped.embed_2.weight
+run(`Rscript --vanilla plotting_corrs.R $outdir $(tr_params.modelid) $(cf_df.sampleID[selected_sample]) $(tr_params.nepochs)`)
