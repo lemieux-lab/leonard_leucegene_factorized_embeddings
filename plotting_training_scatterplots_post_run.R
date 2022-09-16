@@ -1,6 +1,7 @@
 library(dplyr)
 library(ggplot2)
 library(tidyr)
+library(ggpubr)
 
 args = commandArgs(trailingOnly = TRUE)
 wd = args[1]
@@ -17,9 +18,8 @@ plot1 = ggplot(data, aes(x = y_true, y = y_pred)) +
                      " Slope =",signif(fit$coef[[2]], 5),
                      " P =",signif(summary(fit)$coef[2,4], 5))) + 
   scale_x_continuous(limits = c(-1,1))+
-  scale_y_continuous(limits = c(-1,1))+
-  grid()+
-  theme_classic()
+  scale_y_continuous(limits = c(-1,1))
+  
 
 svg(paste(wd, paste(mid, "training_scatterplot_postrun.svg", sep ="_"), sep = "/"))
 plot1

@@ -19,9 +19,9 @@ end
 function eval_distance(orig_space, model_space, groupe, cf_df)
     println(groupe)
     println("ORIGINAL")
-    eval_distance(orig_space, groupe) 
+    eval_distance(orig_space, groupe, cf_df) 
     println("FE (w. grad. clipping)")
-    eval_distance(model_space, groupe) 
+    eval_distance(model_space, groupe, cf_df) 
     # println("FE (no grad. clipping)")
     # eval_distance(model_non_clipped, groupe)       
 end 
