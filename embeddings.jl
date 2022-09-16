@@ -164,6 +164,7 @@ end
 
 function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, restart::Int=0) # todo: sys. call back
     tr_loss = []
+    tr_epochs = []
     opt = Flux.ADAM(params.tr)
     nminibatches = Int(floor(length(Y) / batchsize))
     shuffled_ids = shuffle(collect(1:length(Y)))
@@ -176,7 +177,7 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, 
         mb_ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, length(Y)))
         ids = shuffled_ids[mb_ids]
         X_, Y_ = (X[1][ids],X[2][ids]), Y[ids]
-        push!(tr_loss, loss(X_, Y_, model, params.wd))
+        
         dump_cb(model, params, iter + restart)
         
         gs = gradient(ps) do 
@@ -193,10 +194,11 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, 
         end 
 
         Flux.update!(opt,ps, gs)
-        
+        push!(tr_loss, loss(X_, Y_, model, params.wd))
+        push!(tr_epochs, Int(floor((iter - 1)  / nminibatches)) + 1)
     end 
     dump_cb(model, params, params.nepochs + restart)
-    return tr_loss # patient_embed, model, final_acc
+    return tr_loss, tr_epochs  # patient_embed, model, final_acc
 end 
 
 function inference(X, Y, dump_cb, params, model::FE_model; nepochs = 10_000)
@@ -215,12 +217,12 @@ function inference(X, Y, dump_cb, params, model::FE_model; nepochs = 10_000)
     return tst_loss 
 end 
 
-function post_run(X, Y, model, tr_loss, params)
+function post_run(X, Y, model, tr_loss, tr_epochs, params)
     # patient_embed = cpu(model.net[1][1].weight')
     final_acc = cor(cpu(model.net(X)), cpu(Y))
 
     lossfile = "$(params.model_outdir)/tr_loss.txt"
-    lossdf = DataFrame(Dict([("loss", tr_loss), ("epoch", 1:length(tr_loss))]))
+    lossdf = DataFrame(Dict([("loss", tr_loss), ("iter", 1:length(tr_loss)), ("epochn", tr_epochs)]))
     CSV.write(lossfile, lossdf)
     params_df = params_list_to_df(model_params_list)
     CSV.write("$(outdir)/model_params.txt", params_df)
