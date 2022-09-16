@@ -16,7 +16,7 @@ cols = ge_cds_all.factor_2
 X, Y = prep_FE(ge_cds_all)
 
 params = Params(ge_cds_all, cf_df, outdir; 
-    nepochs = 10_000,
+    nepochs = 40_000,
     tr = 1e-2,
     wd = 1e-8,
     emb_size_1 = 2, 
@@ -27,21 +27,23 @@ params = Params(ge_cds_all, cf_df, outdir;
 
 # push!(model_params_list, non_params)
 push!(model_params_list, params) 
-
+batchsize = 80_000
 step_size_cb = 500 # steps interval between each dump call
+nminibatches = Int(floor(length(Y) / batchsize))
 dump_cb = dump_patient_emb(cf_df, step_size_cb)
 
 model = FE_model(length(ge_cds_all.factor_1), length(ge_cds_all.factor_2), params)
 
-loss, epochs  = train_SGD!(X, Y, dump_cb, params, model, batchsize = 80_000)
-post_run(X, Y, model, loss, params)
-cmd = `Rscript --vanilla plotting_trajectories_training_2d.R $outdir $(params.modelid) $(step_size_cb)`
+tr_loss, epochs  = train_SGD!(X, Y, dump_cb, params, model, batchsize = batchsize)
+post_run(X, Y, model, tr_loss, epochs, params)
+cmd = `Rscript --vanilla plotting_trajectories_training_2d.R $outdir $(params.modelid) $(step_size_cb) $(nminibatches)`
 run(cmd)
+
 cmd = "convert -delay 5 -verbose $(outdir)/$(params.modelid)/*_2d_trn.png $(outdir)/$(params.modelid)_training.gif"
 run(`bash -c $cmd`)
 ### dump scatter plot
-CSV.write("$(tr_params.model_outdir)/y_true_pred_all.txt",DataFrame(Dict([("y_pred",  cpu(model.net(X))), ("y_true", cpu(Y))])))
-cmd = `Rscript --vanilla plotting_training_scatterplots_post_run.R $outdir $(tr_params.modelid)`
+CSV.write("$(params.model_outdir)/y_true_pred_all.txt",DataFrame(Dict([("y_pred",  cpu(model.net(X))), ("y_true", cpu(Y))])))
+cmd = `Rscript --vanilla plotting_training_scatterplots_post_run.R $outdir $(params.modelid)`
 run(cmd)
 
 
