@@ -7,7 +7,19 @@ function make_grid(nb_genes;grid_size=10, min=-3, max=3)
     grid = vcat(vec((points .* ones(grid_size +1, grid_size +1))')', vec((points .* ones(grid_size +1, grid_size +1)))')'
     coords_x_genes = vcat(col1', col2')'
     return grid, coords_x_genes
-end 
+end
+
+# to_i(m, n, i, j) = (i-1)*n + (j-1)
+
+# w = 5
+# ng = 3
+# x = Array{Int32, 2}(undef, (w^2 * ng, 2))
+# for i = 1:w, j = 1:w, g = 1:ng
+#     x[((i-1)+(j-1)*w)*ng + (g-1) + 1, 1] = i
+#     x[((i-1)+(j-1)*w)*ng + (g-1) + 1, 2] = j
+# end
+
+
 
 function interpolate(selected_sample, model, params, outdir; grid_size = 10)
     corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_$(params.modelid)_pred_expr_corrs.txt" ;
