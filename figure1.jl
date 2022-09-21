@@ -19,7 +19,7 @@ params = Params(ge_cds_all, cf_df, outdir;
     nepochs = 80_000,
     tr = 1e-2,
     wd = 1e-8,
-    emb_size_1 = 3, 
+    emb_size_1 = 2, 
     emb_size_2 = 50, 
     hl1=50, 
     hl2=50, 
@@ -55,12 +55,17 @@ include("interpolation.jl")
 
 selected_sample = findall(x -> x == "inv_16", cf_df.interest_groups)[4]
 
-res= interpolate(
+    
+grid, metric_1, metric_2 = interpolate(
     selected_sample,
     model, 
     params, 
     outdir, 
-    grid_size = 50)
+    grid_size = 30)
+metric_1_norm = cpu(metric_1 .- max(cpu(metric_1)...))
+res = vcat(grid', metric_1_norm', metric_2')'
+CSV.write(corr_fname, DataFrame(Dict([("col$(i)", res[:,i]) for i in 1:size(res)[2] ])))
+run(`Rscript --vanilla plotting_corrs.R $outdir $(params.modelid) $(cf_df.sampleID[selected_sample]) $(params.nepochs)`)
 
 cmd = "convert -delay 5 -verbose $(outdir)/$(params.modelid)/*_2d_trn.png $(outdir)/$(params.modelid)_training.gif"
 run(`bash -c $cmd`)
