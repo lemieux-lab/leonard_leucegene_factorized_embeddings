@@ -126,7 +126,7 @@ function dump_patient_emb(cf, dump_freq)
                 embeddf.sex = cf.Sex
                 embeddf.npm1 = map(x -> ["wt", "mut"][Int(x) + 1], cf_df[:,"NPM1 mutation"])
                 embeddf.RNASEQ_protocol = cf.RNASEQ_protocol
-
+                embeddf.cyto_group = cf[:,"Cytogenetic group"]
                 CSV.write( embedfile, embeddf)
             end 
             # saving model in bson (serialised format for restart and investigation)
