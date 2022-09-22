@@ -57,6 +57,7 @@ selected_sample = findall(x -> x == "inv_16", cf_df.interest_groups)[4]
 
     
 grid, metric_1, metric_2 = interpolate(
+    ge_cds_all.data,
     selected_sample,
     model, 
     params, 

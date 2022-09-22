@@ -27,11 +27,11 @@ function make_grid(nb_genes::Int64; grid_size::Int64=10, min::Int64=-3, max::Int
 end
 
 
-function interpolate(selected_sample, model, params, outdir; grid_size = 10)
+function interpolate(expr_data::Matrix, selected_sample, model, params, outdir; grid_size = 10)
     corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_$(params.modelid)_pred_expr_corrs.txt" ;
     println("Creating grid ...")
     coords, gene_id, grid = make_grid(params.insize, grid_size=grid_size)
-    true_expr = gpu(ge_cds_all.data[selected_sample,:])
+    true_expr = gpu(expr_data[selected_sample,:])
     #pred_expr = model.net((Array{Int32}(ones(params.insize) * selected_sample), collect(1:params.insize)))
     println("Proceeding to feedforwards ...")
     gene_embed = model.embed_2(gpu(gene_id))
