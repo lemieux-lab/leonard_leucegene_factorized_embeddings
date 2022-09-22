@@ -25,7 +25,6 @@ dev.off()
 #tr_losses_tiny = tr_losses[lapply(seq(0, max(tr_losses$iter), step_size), max, 1) %>% unlist,]
 
 
-
 for (i in 1:nepochs){
   if ((i %% step_size == 0) | (i == 1)){
     epoch_number = as.integer(floor((i-1)/nminibatches) + 1)
@@ -34,10 +33,11 @@ for (i in 1:nepochs){
     scatter = ggplot(embed, aes(x = emb1, y = emb2, col = interest_groups)) + geom_point() + 
     theme_classic() + coord_cartesian(xlim = c(-5,5), ylim = c(-5,5)) +
     scale_color_manual(values = c("orange", "darkcyan", "grey", "magenta")) + 
-    ggtitle(paste("epoch ", i, "training loss: ", tr_losses$loss[epoch_number]))
+    ggtitle(paste("epoch ", i, "training loss: ", tr_losses$loss[epoch_number])) 
     outpath = paste(wd,mid, paste("frame", sprintf("%09d", i), "_2d_trn.png", sep = ""), sep = "/")
     loss = ggplot(tr_losses, aes(x = epochn, y = loss)) + geom_line() + theme_classic() + annotate("text", x = epoch_number, y= tr_losses$loss[epoch_number], colour = "red", label = "o")
     ggarrange(scatter, loss, labels = c("A", "B") , ncol = 2, nrow = 1)
+    
     ggsave(outpath, width = 16, height = 8)
   
     

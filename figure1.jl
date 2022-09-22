@@ -36,7 +36,7 @@ model = FE_model(length(ge_cds_all.factor_1), length(ge_cds_all.factor_2), param
 
 tr_loss, epochs  = train_SGD!(X, Y, dump_cb, params, model, batchsize = batchsize)
 post_run(X, Y, model, tr_loss, epochs, params)
-cmd = `Rscript --vanilla plotting_trajectories_training_2d.R $outdir $(params.modelid) $(step_size_cb) $(nminibatches)`
+cmd = `Rscript --vanilla plotting_training_scatter_2d.R $outdir $(params.modelid) $(step_size_cb) $(nminibatches)`
 run(cmd)
 
 
@@ -53,7 +53,7 @@ eval_distance(ge_cds_all, model, "inv_16", cf_df)
 
 include("interpolation.jl")
 
-selected_sample = findall(x -> x == "inv_16", cf_df.interest_groups)[4]
+selected_sample = findall(x -> x == "MLL_t", cf_df.interest_groups)[5]
 
     
 grid, metric_1, metric_2 = interpolate(
@@ -68,6 +68,7 @@ grid, metric_1, metric_2 = interpolate(
 
 metric_1_norm = cpu(metric_1 .- max(cpu(metric_1)...))
 res = vcat(grid', metric_1_norm', metric_2')'
+corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_$(params.modelid)_pred_expr_corrs.txt" ;
 CSV.write(corr_fname, DataFrame(Dict([("col$(i)", res[:,i]) for i in 1:size(res)[2] ])))
 run(`Rscript --vanilla plotting_corrs.R $outdir $(params.modelid) $(cf_df.sampleID[selected_sample]) $(params.nepochs)`)
 
