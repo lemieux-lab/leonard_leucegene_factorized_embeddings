@@ -27,10 +27,10 @@ function make_grid(nb_genes::Int64; grid_size::Int64=10, min::Int64=-3, max::Int
 end
 
 
-function interpolate(expr_data::Matrix, selected_sample, model, params, outdir; grid_size = 10)
+function interpolate(expr_data::Matrix, selected_sample, model, params, outdir; grid_size = 10, min = -5, max = 5)
     corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_$(params.modelid)_pred_expr_corrs.txt" ;
     println("Creating grid ...")
-    coords, gene_id, grid = make_grid(params.insize, grid_size=grid_size)
+    coords, gene_id, grid = make_grid(params.insize, grid_size=grid_size, min = min, max =max)
     true_expr = gpu(expr_data[selected_sample,:])
     #pred_expr = model.net((Array{Int32}(ones(params.insize) * selected_sample), collect(1:params.insize)))
     println("Proceeding to feedforwards ...")
@@ -41,10 +41,9 @@ function interpolate(expr_data::Matrix, selected_sample, model, params, outdir; 
     println("Interpolating to true_expr ...")
     metric_1  = sqrt.(sum(abs2.(inputed_expr_matrix .- (true_expr .*  gpu(ones(params.insize, (grid_size+1)^2)))'), dims = 2))
     metric_2 = Array{Float64, 1}(undef, (grid_size +1)^2 )
-    for i in ProgressBar(1:(grid_size + 1)), j in 1:(grid_size +1)
-        offset = (i-1)+(j-1)*grid_size + 1
-        metric_2[offset] = cor(true_expr, inputed_expr_matrix[offset,:])
+    for coord_i in ProgressBar(1:(grid_size + 1)^2)
+        metric_2[coord_i] = cor(true_expr, inputed_expr[(coord_i -1) * params.insize + 1 : coord_i * params.insize])
     end 
     return grid, metric_1, metric_2
-   
+    
 end 

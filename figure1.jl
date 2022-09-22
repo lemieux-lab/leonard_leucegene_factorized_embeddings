@@ -62,7 +62,10 @@ grid, metric_1, metric_2 = interpolate(
     model, 
     params, 
     outdir, 
-    grid_size = 30)
+    grid_size = 50, 
+    min = -5,
+    max = 5)
+
 metric_1_norm = cpu(metric_1 .- max(cpu(metric_1)...))
 res = vcat(grid', metric_1_norm', metric_2')'
 CSV.write(corr_fname, DataFrame(Dict([("col$(i)", res[:,i]) for i in 1:size(res)[2] ])))
