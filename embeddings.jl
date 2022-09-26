@@ -130,7 +130,7 @@ function dump_patient_emb(cf, dump_freq)
                 CSV.write( embedfile, embeddf)
             end 
             # saving model in bson (serialised format for restart and investigation)
-            bson("$(params.model_outdir)/model_$(zpad(e))", Dict("model"=>model))
+            bson("$(params.model_outdir)/model_$(phase)_$(zpad(e))", Dict("model"=>model))
         end
     end
 end

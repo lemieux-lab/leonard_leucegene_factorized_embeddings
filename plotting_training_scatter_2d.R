@@ -10,8 +10,8 @@ dirs = list.dirs(basepath, recursive = F)
 args = commandArgs(trailingOnly = TRUE)
 wd = args[1]
 mid = args[2]
-wd = paste(basepath, "embeddings_2022-09-21T22:55:02.452", sep = "/")
-mid = "FE_a5122a4e2f39da2e5ae34"
+# wd = paste(basepath, "embeddings_2022-09-21T22:55:02.452", sep = "/")
+# mid = "FE_a5122a4e2f39da2e5ae34"
 step_size = as.integer(args[3])
 nminibatches = as.integer(args[4])
 params_file =read.csv(paste(wd, "model_params.txt", sep = "/"))
@@ -44,12 +44,18 @@ svg(paste(wd,mid, paste("frame", sprintf("%09d", nepochs), "_2d_trn.svg", sep = 
 dev.off()
 embed = read.csv(paste(wd, mid, paste("training_model_emb_layer_1_epoch_", nepochs, ".txt",sep =""), sep = "/"))
 
-print(embed %>% group_by(cyto_group) %>% summarise(n = n()))
-print(embed %>% group_by(interest_groups) %>% summarise(n = n()))
+# print(embed %>% group_by(cyto_group) %>% summarise(n = n()))
+# print(embed %>% group_by(interest_groups) %>% summarise(n = n()))
 embed$shape_lvl = factor(embed$cyto_group)
 scatter = ggplot(embed, aes(x = emb1, y = emb2, col = cyto_group, shape = cyto_group)) + geom_point(size = 10) + 
     theme_classic() + coord_fixed() + scale_shape_manual(values = 13:26) + 
     ggtitle(paste("epoch ", nepochs, "training loss: ", tr_losses$loss[nepochs]))
 svg(paste(wd,mid, paste("frame", sprintf("%09d", nepochs), "_by_group_2d_trn.svg", sep = ""), sep = "/"),  width = 20, height = 10)
     scatter
+dev.off()
+scatter = ggplot(embed, aes(x = emb1, y = emb2, col = cyto_group)) + geom_text(aes(label = index)) + 
+    theme_classic() + coord_fixed() + scale_shape_manual(values = 13:26) + 
+    ggtitle(paste("epoch ", nepochs, "training loss: ", tr_losses$loss[nepochs]))
+svg(paste(wd,mid, paste("frame", sprintf("%09d", nepochs), "_by_id_2d_trn.svg", sep = ""), sep = "/"),  width = 20, height = 10)
+scatter
 dev.off()

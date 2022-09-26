@@ -1,4 +1,5 @@
 
+using Flux
 # function make_grid(nb_genes;grid_size=10, min=-3, max=3)
 #     step_size = (max - min) / grid_size
 #     points = collect(range(min, max, step = step_size   ))
@@ -39,11 +40,36 @@ function interpolate(expr_data::Matrix, selected_sample, model, params, outdir; 
     inputed_expr = vec(model.outpl(model.hl2(model.hl1(embed_layer))))
     inputed_expr_matrix = reshape(inputed_expr, (abs2(grid_size + 1), params.insize))
     println("Interpolating to true_expr ...")
-    metric_1  = sqrt.(sum(abs2.(inputed_expr_matrix .- (true_expr .*  gpu(ones(params.insize, (grid_size+1)^2)))'), dims = 2))
+    metric_1  = Array{Float64, 1}(undef, (grid_size +1)^2 ) # instant
     metric_2 = Array{Float64, 1}(undef, (grid_size +1)^2 )
+    metric_3 = Array{Float64, 1}(undef, (grid_size +1)^2 )
     for coord_i in ProgressBar(1:(grid_size + 1)^2)
-        metric_2[coord_i] = cor(true_expr, inputed_expr[(coord_i -1) * params.insize + 1 : coord_i * params.insize])
+        metric_1[coord_i] = cor(true_expr, inputed_expr[(coord_i -1) * params.insize + 1 : coord_i * params.insize])
+        metric_2[coord_i] = Flux.Losses.mse(true_expr, inputed_expr[(coord_i -1) * params.insize + 1 : coord_i * params.insize] ) # MSE
+        metric_3[coord_i] = metric_2[coord_i] + sum(abs2, grid[coord_i, :]) * params.wd # total loss
     end 
-    return grid, metric_1, metric_2
+    return grid, metric_1, metric_2, metric_3
+    
+end 
+
+function interpolate_test(expr_data::Matrix, selected_sample, model, params, outdir; grid_size = 10, min = -5, max = 5)
+    corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_$(params.modelid)_pred_expr_corrs.txt" ;
+    println("Creating grid ...")
+    coords, gene_id, grid = make_grid(params.insize, grid_size=grid_size, min = min, max =max)
+    true_expr = gpu(expr_data[selected_sample,:])
+    #pred_expr = model.net((Array{Int32}(ones(params.insize) * selected_sample), collect(1:params.insize)))
+    println("Proceeding to feedforwards ...")
+    gene_embed = model.embed_2.weight
+    #embed_layer = vcat(gpu(coords'), gene_embed)
+    # inputed_expr = vec(model.outpl(model.hl2(model.hl1(embed_layer))))
+    # inputed_expr_matrix = reshape(inputed_expr, (abs2(grid_size + 1), params.insize))
+    println("Interpolating to true_expr ...")
+    metric_1  = Array{Float64, 1}(undef, (grid_size +1)^2 ) # instant
+    for coord_i in ProgressBar(1:(grid_size + 1)^2)
+        embed_layer = vcat(coords[(coord_i -1) * params.insize + 1 : coord_i * params.insize,:]', gene_embed)
+        inputed_expr = vec(model.outpl(model.hl2(model.hl1(embed_layer))))
+        metric_1[coord_i] = Flux.Losses.mse(inputed_expr, true_expr)
+    end
+    return grid, metric_1
     
 end 
