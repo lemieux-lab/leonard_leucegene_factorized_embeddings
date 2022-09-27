@@ -51,7 +51,14 @@ function interpolate(expr_data::Matrix, selected_sample, model, params, outdir; 
     return grid, metric_1, metric_2, metric_3
     
 end 
-
+function my_cor(X::AbstractVector, Y::AbstractVector)
+    sigma_X = std(X)
+    sigma_Y = std(Y)
+    mean_X = mean(X)
+    mean_Y = mean(Y)
+    cov = sum((X .- mean_X) .* (Y .- mean_Y)) / length(X)
+    return cov / sigma_X / sigma_Y
+end 
 function interpolate_test(expr_data::Matrix, selected_sample, model, params, outdir; grid_size = 10, min = -5, max = 5)
     corr_fname = "$(outdir)/$(cf_df.sampleID[selected_sample])_$(params.modelid)_pred_expr_corrs.txt" ;
     println("Creating grid ...")
@@ -65,11 +72,16 @@ function interpolate_test(expr_data::Matrix, selected_sample, model, params, out
     # inputed_expr_matrix = reshape(inputed_expr, (abs2(grid_size + 1), params.insize))
     println("Interpolating to true_expr ...")
     metric_1  = Array{Float64, 1}(undef, (grid_size +1)^2 ) # instant
+    metric_2  = Array{Float64, 1}(undef, (grid_size +1)^2 ) # instant
+    metric_3  = Array{Float64, 1}(undef, (grid_size +1)^2 ) # instant
+    metrics = Dict("x"=>grid[:,1], "y"=>grid[:,2], "mse"=> metric_1, "mse_wd"=> metric_2, "cor"=> metric_3)
     for coord_i in ProgressBar(1:(grid_size + 1)^2)
         embed_layer = vcat(coords[(coord_i -1) * params.insize + 1 : coord_i * params.insize,:]', gene_embed)
         inputed_expr = vec(model.outpl(model.hl2(model.hl1(embed_layer))))
-        metric_1[coord_i] = Flux.Losses.mse(inputed_expr, true_expr)
+        metrics["mse"][coord_i] = Flux.Losses.mse(inputed_expr, true_expr)
+        metrics["mse_wd"][coord_i] = metrics["mse"][coord_i] + sum(abs2, grid[coord_i, :]) * params.wd 
+        metrics["cor"][coord_i] = my_cor(true_expr, inputed_expr) 
     end
-    return grid, metric_1
+    return grid, metrics
     
 end 

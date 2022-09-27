@@ -53,8 +53,8 @@ scatter = ggplot(embed, aes(x = emb1, y = emb2, col = cyto_group, shape = cyto_g
 svg(paste(wd,mid, paste("frame", sprintf("%09d", nepochs), "_by_group_2d_trn.svg", sep = ""), sep = "/"),  width = 20, height = 10)
     scatter
 dev.off()
-scatter = ggplot(embed, aes(x = emb1, y = emb2, col = cyto_group)) + geom_text(aes(label = index)) + 
-    theme_classic() + coord_fixed() + scale_shape_manual(values = 13:26) + 
+scatter = ggplot(embed, aes(x = emb1, y = emb2, col = cyto_group)) + geom_text(aes(label = index), size = 1) + 
+    theme_classic() + coord_fixed() + 
     ggtitle(paste("epoch ", nepochs, "training loss: ", tr_losses$loss[nepochs]))
 svg(paste(wd,mid, paste("frame", sprintf("%09d", nepochs), "_by_id_2d_trn.svg", sep = ""), sep = "/"),  width = 20, height = 10)
 scatter

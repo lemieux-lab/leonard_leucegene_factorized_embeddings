@@ -88,7 +88,7 @@ function l2_penalty(model::FE_model)
 end
 
 loss(x, y, model, wd) = Flux.Losses.mse(model.net(x), y) + l2_penalty(model) * wd
-
+log_loss(x, y, model, wd) = log10(Flux.Losses.mse(model.net(x), y) + l2_penalty(model) * wd)
 
 function prep_FE(data; device = gpu)
     ## data preprocessing
@@ -201,19 +201,25 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, 
     return tr_loss, tr_epochs  # patient_embed, model, final_acc
 end 
 
-function inference(X, Y, dump_cb, params, model::FE_model; nepochs = 10_000)
+function inference(X, Y, dump_cb, params, inf_model::FE_model; nepochs = 10_000)
     tst_loss = []
     opt = Flux.ADAM(params.tr)
+    embed_2_copy = gpu(cpu(inf_model.embed_2.weight))
     for iter in ProgressBar(1:nepochs)
-        ps = Flux.params(model.net[1])
-        push!(tst_loss, loss(X, Y, model, params.wd))
-        dump_cb(model, params, iter; phase = "test")
+        ps = Flux.params(inf_model.embed_1)
+        push!(tst_loss, loss(X, Y, inf_model, params.wd))
+        dump_cb(inf_model, params, iter; phase = "test")
         gs = gradient(ps) do 
-            loss(X, Y, model, params.wd)
+            Flux.Losses.mse(inf_model.net(X), Y) + l2_penalty(inf_model) * params.wd
         end
         Flux.update!(opt,ps, gs)
+        # if sum(embed_2_copy .== inf_model.embed_2.weight) != 0
+        #     println(inf_model.embed_1.weight)
+        #     println("error")
+        #     break
+        # end
     end 
-    dump_cb(model, params, nepochs ;phase = "test")
+    dump_cb(inf_model, params, nepochs ;phase = "test")
     return tst_loss 
 end 
 
@@ -237,10 +243,24 @@ function post_run(X, Y, model, tr_loss, tr_epochs, params)
 end
 
 function replace_layer(net::FE_model, new_f1_size::Int)
+    new_model = deepcopy(net)
     new_emb_1 = Flux.Embedding(new_f1_size, size(net.embed_1.weight)[1])
     new_net = gpu(Flux.Chain(
         Flux.Parallel(vcat, new_emb_1, net.embed_2),
         net.hl1, net.hl2, net.outpl,
         vec))
     return FE_model(new_net, new_emb_1, net.embed_2, net.hl1, net.hl2, net.outpl)
+end
+
+function new_model_embed_1_reinit(model::FE_model,  new_f1_size::Int)
+    emb_layer_1 = gpu(Flux.Embedding(new_f1_size, size(model.embed_1.weight)[1]))
+    emb_layer_2 = gpu(cpu(model.embed_2))
+    hl1 = gpu(cpu(model.hl1))
+    hl2 = gpu(cpu(model.hl2))
+    outpl = gpu(cpu(model.outpl))
+    net = gpu(Flux.Chain(
+        Flux.Parallel(vcat, emb_layer_1, emb_layer_2),
+        hl1, hl2, outpl,
+        vec))
+    return FE_model(net, emb_layer_1, emb_layer_2, hl1, hl2, outpl)
 end
