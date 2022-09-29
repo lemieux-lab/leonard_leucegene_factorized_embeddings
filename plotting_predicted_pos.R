@@ -11,7 +11,7 @@ pos_y = as.numeric(args[5])
 
 fname = paste(sampleid, mid, "inferred_positions", sep = "_")
 data = read.csv(paste(wd, paste(fname, ".txt", sep = ""), sep = "/"))
-g = ggplot(data, aes(x = x, y = y)) + geom_point() +   
+g = ggplot(data, aes(x = x, y = y)) + geom_point(alpha = 0.5) +   
   annotate("text", x = pos_x,y = pos_y, label = "X", color = "red") + 
   theme_classic() +
   scale_x_continuous(limits = c(-4,4)) +

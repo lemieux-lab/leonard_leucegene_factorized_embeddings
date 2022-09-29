@@ -124,7 +124,7 @@ function dump_patient_emb(cf, dump_freq)
                 embeddf.index = cf.sampleID
                 embeddf.interest_groups = cf.interest_groups
                 embeddf.sex = cf.Sex
-                embeddf.npm1 = map(x -> ["wt", "mut"][Int(x) + 1], cf_df[:,"NPM1 mutation"])
+                embeddf.npm1 = map(x -> ["wt", "mut"][Int(x) + 1], cf[:,"NPM1 mutation"])
                 embeddf.RNASEQ_protocol = cf.RNASEQ_protocol
                 embeddf.cyto_group = cf[:,"Cytogenetic group"]
                 CSV.write( embedfile, embeddf)
@@ -200,12 +200,23 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, 
     dump_cb(model, params, params.nepochs + restart)
     return tr_loss, tr_epochs  # patient_embed, model, final_acc
 end 
-
-function inference(X, Y, dump_cb, params, inf_model::FE_model; nepochs = 10_000)
+function inference(X_t, Y_t, model, params, dump_cb; nepochs_tst = 600, ns = 100)
+    positions = Array{Float32, 2}(undef, (100,3))
+    for i in ProgressBar(1:ns)
+        inference_mdl = new_model_embed_1_reinit(model, 1)
+        tst_loss = train_patient_embed(X_t, Y_t, dump_cb, params, inference_mdl, nepochs = nepochs_tst)
+        pos = inference_mdl.embed_1.weight
+        positions[i,1] = pos[1] 
+        positions[i,2] = pos[2]
+        positions[i,3] = my_cor(inference_mdl.net(X_t), Y_t)
+    end 
+    inf_pos = positions[findall(positions[:,3] .== max(positions[:,3]...)),:]
+    return inf_pos, positions
+end 
+function train_patient_embed(X, Y, dump_cb, params, inf_model::FE_model; nepochs = 10_000)
     tst_loss = []
     opt = Flux.ADAM(params.tr)
-    embed_2_copy = gpu(cpu(inf_model.embed_2.weight))
-    for iter in ProgressBar(1:nepochs)
+    for iter in 1:nepochs
         ps = Flux.params(inf_model.embed_1)
         push!(tst_loss, loss(X, Y, inf_model, params.wd))
         dump_cb(inf_model, params, iter; phase = "test")
@@ -213,11 +224,6 @@ function inference(X, Y, dump_cb, params, inf_model::FE_model; nepochs = 10_000)
             Flux.Losses.mse(inf_model.net(X), Y) + l2_penalty(inf_model) * params.wd
         end
         Flux.update!(opt,ps, gs)
-        # if sum(embed_2_copy .== inf_model.embed_2.weight) != 0
-        #     println(inf_model.embed_1.weight)
-        #     println("error")
-        #     break
-        # end
     end 
     dump_cb(inf_model, params, nepochs ;phase = "test")
     return tst_loss 
