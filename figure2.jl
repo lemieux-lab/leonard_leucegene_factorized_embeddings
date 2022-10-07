@@ -124,7 +124,7 @@ function concordance_index(S, Y)
             #         concordant, discordant = update_pair(i, j, S[i], S[j], concordant, discordant)
             #     end    
             # end
-            println("($i, $j) ($(S[i]), $(S[j])), ($(E[i]), $(E[j])), $δi, $δs, $tmp_c, $(tmp_c > 0), $(tmp_c < 0)")
+            # println("($i, $j) ($(S[i]), $(S[j])), ($(E[i]), $(E[j])), $δi, $δs, $tmp_c, $(tmp_c > 0), $(tmp_c < 0)")
         end
     end
     println("$concordant, $discordant")
@@ -159,7 +159,7 @@ for iter in 1:CPHDNN_params.nepochs
         cox_nll(CPHDNN_model, X_redux, Y_surv,  CPHDNN_params.wd)
     end
     Flux.update!(opt, ps, gs)
-    println("loss: $(tr_loss[end])\tc_index: $(concordance_index(CPHDNN_model.net(X_redux), Y_surv))" )
+    # println("loss: $(tr_loss[end])\tc_index: $(concordance_index(CPHDNN_model.net(X_redux), Y_surv))" )
 end 
 
 # for each fold do
