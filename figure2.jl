@@ -106,23 +106,32 @@ end
 
 function concordance_index(S, Y)
     T = Y[:,1]
-    E = Y[:,2]
+    E = (Y[:,2] .== 1.0)
     concordant = 0 #zeros(length(Y[:,2])))
     discordant = 0
     for i in 1:length(S)
         for j in 1:length(S)
-            if (i != j) & (Bool(E[i]) | Bool(E[j])) # if i != j, and both are not censored
-                if (Bool(E[i]) & Bool(E[j])) # no censor
-                    concordant, discordant = update_pair(i, j, S[i], S[j], concordant, discordant)
-                else
-                    concordant, discordant = update_pair(i, j, S[i], S[j], concordant, discordant)
-                end    
-            end        
+            δi = i - j
+            δs = S[j] - S[i]
+            tmp_c = δs * max(δi * E[j], δi * E[i]) * sign(δi)
+            tmp_c > 0 && (concordant += 1)
+            tmp_c < 0 && (discordant += 1)
+            # if (i != j) && (E[i] || E[j]) # if i != j, and both are not censored
+
+            #     if (E[i] && E[j]) # no censor
+            #         concordant, discordant = update_pair(i, j, S[i], S[j], concordant, discordant)
+            #     else
+            #         concordant, discordant = update_pair(i, j, S[i], S[j], concordant, discordant)
+            #     end    
+            # end
+            println("($i, $j) ($(S[i]), $(S[j])), ($(E[i]), $(E[j])), $δi, $δs, $tmp_c, $(tmp_c > 0), $(tmp_c < 0)")
         end
     end
+    println("$concordant, $discordant")
     c_index = concordant / (concordant + discordant)
     return c_index
 end
+
 concordance_index(CPHDNN_model.net(X_redux), Y_surv)
 
 function cox_nll(CPHDNN_model, X, Y, wd)
@@ -132,13 +141,14 @@ function cox_nll(CPHDNN_model, X, Y, wd)
     uncensored_sum = 0 #zeros(length(Y[:,2])))
     for (x_i, E_i) in enumerate(E)
         if E_i == 1 # if uncensored
-            log_risk = log(sum(ℯ .^ out[1:x_i]))
+            log_risk = log(sum(ℯ .^ out[x_i+1:end]))  # inverser ordre
             uncensored_sum += out[x_i] - log_risk
         end        
     end
     loss = - uncensored_sum / sum(E .== 1)
     return loss
 end 
+
 tr_loss = []
 tr_epochs = []
 for iter in 1:CPHDNN_params.nepochs
