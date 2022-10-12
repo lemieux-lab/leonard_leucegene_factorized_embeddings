@@ -32,12 +32,12 @@ struct CPHDNN
     hl2::Flux.Dense
     outpl::Flux.Dense
 end
-function CPHDNN(params::CPHDNN_Params)
-    hl1 = Flux.Dense(params.insize,params.hl1_size, relu)
-    hl2 = Flux.Dense(params.hl1_size, params.hl2_size, relu)
-    outpl = Flux.Dense(params.hl2_size, 1, identity)
-    net = Flux.Chain(
-        hl1, hl2, outpl)
+function CPHDNN(params::CPHDNN_Params, device = gpu)
+    hl1 = device(Flux.Dense(params.insize,params.hl1_size, relu))
+    hl2 = device(Flux.Dense(params.hl1_size, params.hl2_size, relu))
+    outpl = device(Flux.Dense(params.hl2_size, 1, identity))
+    net = device(Flux.Chain(
+        hl1, hl2, outpl))
     return CPHDNN(net, hl1, hl2, outpl)
 end
 

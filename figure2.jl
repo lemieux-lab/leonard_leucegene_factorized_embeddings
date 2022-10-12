@@ -71,10 +71,10 @@ include("cphdnn.jl")
 X_redux = model.embed_1.weight
 Y_surv = cf_df[folds[1].train_ids, ["Overall_Survival_Time_days","Overall_Survival_Status"]]
 rename!(Y_surv, ["T", "E"])
-sorted_ids = sortperm(Y_surv[:,"T"]) 
-Y_surv = Matrix(Y_surv[sorted_ids,:])
-X_redux = cpu(X_redux[:,sorted_ids])
-
+sorted_ids = reverse(sortperm(Y_surv[:,"T"]))
+Y_surv = gpu(Matrix(Y_surv[sorted_ids,:]))
+X_redux = X_redux[:,sorted_ids]
+include("cphdnn.jl")
 CPHDNN_params = CPHDNN_Params(X_redux, Y_surv, "CPHDNN_train", outdir;
     nepochs = 10000,
     tr = 1e-2,
@@ -111,23 +111,25 @@ function concordance_index(S, Y)
     discordant = 0
     for i in 1:length(S)
         for j in 1:length(S)
-            δi = i - j
-            δs = S[j] - S[i]
-            tmp_c = δs * max(δi * E[j], δi * E[i]) * sign(δi)
-            tmp_c > 0 && (concordant += 1)
-            tmp_c < 0 && (discordant += 1)
-            # if (i != j) && (E[i] || E[j]) # if i != j, and both are not censored
+            if j > i && E[i] != 0
+                δi = j - i  
+                δs = S[i] - S[j]
+                tmp_c = - δs * sign(δi)
+                tmp_c > 0 && (concordant += 1)
+                tmp_c < 0 && (discordant += 1)
+                # if (i != j) && (E[i] || E[j]) # if i != j, and both are not censored
 
-            #     if (E[i] && E[j]) # no censor
-            #         concordant, discordant = update_pair(i, j, S[i], S[j], concordant, discordant)
-            #     else
-            #         concordant, discordant = update_pair(i, j, S[i], S[j], concordant, discordant)
-            #     end    
-            # end
-            # println("($i, $j) ($(S[i]), $(S[j])), ($(E[i]), $(E[j])), $δi, $δs, $tmp_c, $(tmp_c > 0), $(tmp_c < 0)")
+                #     if (E[i] && E[j]) # no censor
+                #         concordant, discordant = update_pair(i, j, S[i], S[j], concordant, discordant)
+                #     else
+                #         concordant, discordant = update_pair(i, j, S[i], S[j], concordant, discordant)
+                #     end    
+                # end
+                #println("($i, $j) ($(S[i]), $(S[j])), ($(E[i]), $(E[j])), $δi, $δs, $tmp_c, $(tmp_c > 0), $(tmp_c < 0)")
+            end 
         end
     end
-    println("$concordant, $discordant")
+    #println("$concordant, $discordant")
     c_index = concordant / (concordant + discordant)
     return c_index
 end
@@ -149,19 +151,32 @@ function cox_nll(CPHDNN_model, X, Y, wd)
     return loss
 end 
 
+function _negative_log_likelihood(CPHDNN_model, X, Y, wd)
+    E = Y[:,2]
+    risk = CPHDNN_model.net(X)
+    hazard_ratio = exp.(risk)
+    log_risk = log.(cumsum(hazard_ratio, dims = 2))
+    uncensored_likelihood = risk .- log_risk
+    censored_likelihood = uncensored_likelihood' .* E
+    neg_likelihood = - sum(censored_likelihood)
+    return neg_likelihood
+end 
 tr_loss = []
 tr_epochs = []
-for iter in 1:CPHDNN_params.nepochs
+for iter in ProgressBar(1:10_000)
     ps = Flux.params(CPHDNN_model.net)
-    push!(tr_loss, cox_nll(CPHDNN_model, X_redux, Y_surv, CPHDNN_params.wd))
+    push!(tr_loss, _negative_log_likelihood(CPHDNN_model, X_redux, Y_surv, CPHDNN_params.wd))
     gs = gradient(ps) do 
         #Flux.Losses.mse(CPHDNN_model.net(X_redux), Y_surv[:,1])
-        cox_nll(CPHDNN_model, X_redux, Y_surv,  CPHDNN_params.wd)
+        _negative_log_likelihood(CPHDNN_model, X_redux, Y_surv,  CPHDNN_params.wd)
     end
     Flux.update!(opt, ps, gs)
-    # println("loss: $(tr_loss[end])\tc_index: $(concordance_index(CPHDNN_model.net(X_redux), Y_surv))" )
+    # println("loss: $(tr_loss[end])")#\tc_index: $(concordance_index(CPHDNN_model.net(X_redux), Y_surv))" )
 end 
-
+concordance_index(CPHDNN_model.net(X_redux), Y_surv)
+S = CPHDNN_model.net(X_redux)
+i = collect(1:length(S))
+uncesored_conc = 
 # for each fold do
     # 1 : train FE 
     # 2 : train CPH on FE 
