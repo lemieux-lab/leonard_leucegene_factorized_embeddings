@@ -1,5 +1,6 @@
 
 using Flux
+include("utils.jl")
 # function make_grid(nb_genes;grid_size=10, min=-3, max=3)
 #     step_size = (max - min) / grid_size
 #     points = collect(range(min, max, step = step_size   ))
@@ -30,14 +31,7 @@ end
 
 
 
-function my_cor(X::AbstractVector, Y::AbstractVector)
-    sigma_X = std(X)
-    sigma_Y = std(Y)
-    mean_X = mean(X)
-    mean_Y = mean(Y)
-    cov = sum((X .- mean_X) .* (Y .- mean_Y)) / length(X)
-    return cov / sigma_X / sigma_Y
-end 
+
 function interpolate(expr_data::Matrix, selected_sample, model, params ; grid_size = 10, min = -5, max = 5)
     println("Creating grid ...")
     coords, grid = make_grid(params.insize, grid_size=grid_size, min = min, max =max)

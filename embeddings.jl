@@ -7,7 +7,7 @@ using LinearAlgebra
 using Random
 
 include("data_preprocessing.jl")
-
+include("utils.jl")
 struct Params
     nepochs::Int64
     tr::Float64
@@ -97,8 +97,8 @@ function prep_FE(data; device = gpu)
     m = length(data.factor_2)
     values = Array{Float32,2}(undef, (1, n * m))
     #print(size(values))
-    factor_1_index = Array{Int32,1}(undef, max(n * m, 1))
-    factor_2_index = Array{Int32,1}(undef, max(n * m, 1))
+    factor_1_index = Array{Int64,1}(undef, max(n * m, 1))
+    factor_2_index = Array{Int64,1}(undef, max(n * m, 1))
      # d3_index = Array{Int32,1}(undef, n * m)
     
     for i in 1:n
@@ -200,18 +200,18 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, 
     dump_cb(model, params, params.nepochs + restart)
     return tr_loss, tr_epochs  # patient_embed, model, final_acc
 end 
-function inference(X_t, Y_t, model, params, dump_cb; nepochs_tst = 600, ns = 100)
-    positions = Array{Float32, 2}(undef, (100,3))
-    for i in ProgressBar(1:ns)
-        inference_mdl = new_model_embed_1_reinit(model, 1)
+function inference(X_t, Y_t, model, params, dump_cb; nepochs_tst = 600, nseeds = 100)
+    nsamples = max(X_t[1]...)
+    positions = Array{Float32, 2}(undef, (nseeds * nsamples, 3))
+    for i in ProgressBar(1:nseeds)
+        inference_mdl = new_model_embed_1_reinit(model, nsamples)
         tst_loss = train_patient_embed(X_t, Y_t, dump_cb, params, inference_mdl, nepochs = nepochs_tst)
         pos = inference_mdl.embed_1.weight
-        positions[i,1] = pos[1] 
-        positions[i,2] = pos[2]
-        positions[i,3] = my_cor(inference_mdl.net(X_t), Y_t)
+        positions[(i -1) * nsamples + 1: i * nsamples, 1] = pos[1,:]
+        positions[(i -1) * nsamples + 1: i * nsamples, 2] = pos[2,:] 
+        positions[(i -1) * nsamples + 1: i * nsamples, 3] = my_cor(inference_mdl.net(X_t), Y_t, X_t[1])
     end 
-    inf_pos = positions[findall(positions[:,3] .== max(positions[:,3]...)),:]
-    return inf_pos, positions
+    return positions
 end 
 function train_patient_embed(X, Y, dump_cb, params, inf_model::FE_model; nepochs = 10_000)
     tst_loss = []

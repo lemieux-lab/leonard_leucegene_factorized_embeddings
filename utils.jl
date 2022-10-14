@@ -2,6 +2,18 @@ using CSV
 using DataFrames
 using MultivariateStats
 
+###############################################
+####### Pearson Correlation coeff on GPU ######
+###############################################
+function my_cor(X::AbstractVector, Y::AbstractVector)
+        sigma_X = std(X)
+        sigma_Y = std(Y)
+        mean_X = mean(X)
+        mean_Y = mean(Y)
+        cov = sum((X .- mean_X) .* (Y .- mean_Y)) / length(X)
+        return cov / sigma_X / sigma_Y
+end 
+
 ############################
 ###### General utilities ###
 ############################

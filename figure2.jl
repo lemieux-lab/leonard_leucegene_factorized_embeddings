@@ -64,6 +64,37 @@ tr_loss, epochs  = train_SGD!(X, Y, dump_cb, params, model, batchsize = batchsiz
 post_run(X, Y, model, tr_loss, epochs, params)
 
 ################################
+###### Inference test set ######
+################################
+include("embeddings.jl")
+X_t, Y_t = prep_FE(folds[1].test)
+positions = inference(X_t, Y_t, model, params, dump_cb, nepochs_tst = 600, nseeds = 100) # 600, 100 --> ~ 5 mins
+#####
+##### determine global minimum / most likely inferred position in embedding
+#####
+nsamples = 30
+nseeds = 100
+tst_embed = Array{Float32, 2}(undef, (nsamples, 3))
+for sample_id in 1:nsamples
+    sample_seeds = positions[[(seedn -1) * nsamples + sample_id for seedn in 1:nseeds],:] 
+    hit = sample_seeds[findall(sample_seeds[:,3] .== max(sample_seeds[:,3]...))[1],:]
+    tst_embed[sample_id,:] = hit  
+end
+#####
+##### merge and annotate two sets 
+#####
+ntotal = size(ge_cds_all.data)[1]
+merged_ids = vcat(folds[1].train_ids, folds[1].test_ids)
+merged = cf_df[merged_ids,["sampleID", "Cytogenetic group", "interest_groups"]]
+merged.embed1 = vcat(model.embed_1.weight[1,:], tst_embed[:,1]) 
+merged.embed2 = vcat(model.embed_1.weight[2,:], tst_embed[:,2])
+merged.train = ones(ntotal)
+merged.train[folds[1].test_ids] = zeros(length(folds[1].test_ids))
+CSV.write("$(params.model_outdir)_fold1_train_test.csv", merged)
+
+#inf_pos = positions[findall(positions[:,3] .== max(positions[:,3]...)),:]
+
+################################
 ####### CPHDNN training ########
 ################################
 include("cphdnn.jl")
@@ -74,6 +105,15 @@ rename!(Y_surv, ["T", "E"])
 sorted_ids = reverse(sortperm(Y_surv[:,"T"]))
 Y_surv = gpu(Matrix(Y_surv[sorted_ids,:]))
 X_redux = X_redux[:,sorted_ids]
+
+#### test set ##################
+X_t_redux = tst_embed[:,1:2]
+Y_t_surv = cf_df[folds[1].test_ids, ["Overall_Survival_Time_days","Overall_Survival_Status"]]
+rename!(Y_t_surv, ["T", "E"])
+sorted_ids = reverse(sortperm(Y_t_surv[:,"T"]))
+Y_t_surv = gpu(Matrix(Y_t_surv[sorted_ids,:]))
+X_t_redux = gpu(X_t_redux'[:,sorted_ids])
+
 include("cphdnn.jl")
 CPHDNN_params = CPHDNN_Params(X_redux, Y_surv, "CPHDNN_train", outdir;
     nepochs = 10000,
@@ -134,8 +174,11 @@ function concordance_index(S, Y)
     return c_index
 end
 
-concordance_index(CPHDNN_model.net(X_redux), Y_surv)
-
+for i in 1:100
+    CPHDNN_model = CPHDNN(CPHDNN_params)
+    c = concordance_index(CPHDNN_model.net(X_redux), Y_surv)
+    println(c)
+end
 function cox_nll(CPHDNN_model, X, Y, wd)
     T = Y[:,1]
     E = Y[:,2]
@@ -162,25 +205,33 @@ function _negative_log_likelihood(CPHDNN_model, X, Y, wd)
     return neg_likelihood
 end 
 tr_loss = []
+vld_loss = []
 tr_epochs = []
-for iter in ProgressBar(1:10_000)
+CPHDNN_model = CPHDNN(CPHDNN_params) 
+concordance_index(CPHDNN_model.net(X_redux), Y_surv) # concordance on train set 
+concordance_index(CPHDNN_model.net(X_t_redux), Y_t_surv)# concordance on test set 
+for iter in 1:40_000
     ps = Flux.params(CPHDNN_model.net)
     push!(tr_loss, _negative_log_likelihood(CPHDNN_model, X_redux, Y_surv, CPHDNN_params.wd))
+    push!(vld_loss, _negative_log_likelihood(CPHDNN_model, X_t_redux, Y_t_surv, CPHDNN_params.wd))
+    
     gs = gradient(ps) do 
         #Flux.Losses.mse(CPHDNN_model.net(X_redux), Y_surv[:,1])
         _negative_log_likelihood(CPHDNN_model, X_redux, Y_surv,  CPHDNN_params.wd)
     end
     Flux.update!(opt, ps, gs)
-    # println("loss: $(tr_loss[end])")#\tc_index: $(concordance_index(CPHDNN_model.net(X_redux), Y_surv))" )
+    if iter % 100 == 0
+        println("$iter \t loss: $(tr_loss[end]), $(vld_loss[end])")#\tc_index: $(concordance_index(CPHDNN_model.net(X_redux), Y_surv))" )
+
+    end 
 end 
-concordance_index(CPHDNN_model.net(X_redux), Y_surv)
-S = CPHDNN_model.net(X_redux)
-i = collect(1:length(S))
-uncesored_conc = 
+concordance_index(CPHDNN_model.net(X_redux), Y_surv) # concordance on train set 
+concordance_index(CPHDNN_model.net(X_t_redux), Y_t_surv)# concordance on test set 
+CPHDNN_model.net(X_redux)
 # for each fold do
-    # 1 : train FE 
-    # 2 : train CPH on FE 
-    # 3 : infer test set FE 
+    # 1 : train FE DONE  
+    # 2 : train CPH on FE DONE 
+    # 3 : infer test set FE DONE 
     # 4 : test CPH on test, record risk scores by patient  
 
 # compute concordance index of scores 
