@@ -13,6 +13,15 @@ function my_cor(X::AbstractVector, Y::AbstractVector)
         cov = sum((X .- mean_X) .* (Y .- mean_Y)) / length(X)
         return cov / sigma_X / sigma_Y
 end 
+function my_cor(X::AbstractVector, Y::AbstractVector, GR::AbstractVector)
+        groups = unique(GR)
+        corrs = Array{Float32, 1}(undef, length(groups))
+        for (i, gr) in enumerate(groups) 
+                gr_ids = findall(GR .== gr)
+                corrs[gr] = my_cor(X[gr_ids],Y[gr_ids])
+        end
+        return corrs
+end 
 
 ############################
 ###### General utilities ###

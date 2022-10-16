@@ -5,13 +5,6 @@
 # 3 replicates
 # concordance index
 
-CDS
-PCA
-TSNE 
-LSC17 
-CYTO_MUT 
-FE 
-
 include("init.jl")
 
 basepath = "."
@@ -20,12 +13,49 @@ outpath, outdir, model_params_list, accuracy_list = set_dirs(basepath)
 include("utils.jl")
 include("embeddings.jl")
 cf_df, ge_cds_all, lsc17_df = load_data(basepath, frac_genes = 0.25, avg_norm = true) 
-folds = split_train_test(ge_cds_all, nfolds = 10)
 
 ###################################################################
 ##### Baseline : CPHDNN on CDS, PCA, TSNE, LSC17 ##################
 ###################################################################
+cf_df[:,"Sex_F"] = vec(cf_df[:,"Sex"] .== 1)
+cf_df[:,"Age_gt_60"] = 
 
+mutations = ["NPM1 mutation", "FLT3-ITD mutation", "IDH1-R132 mutation"]
+age_sex = ["Sex_F","Age_gt_60"]
+cytogenetics = ["MLL translocations (+MLL FISH positive) (Irrespective of additional cytogenetic abnormalities)",
+        "Intermediate abnormal karyotype (except isolated trisomy/tetrasomy 8)",
+        "Normal karyotype",
+        "Complex (3 and more chromosomal abnormalities)",
+        "Trisomy/tetrasomy 8 (isolated)",
+        "Monosomy 5/ 5q-/Monosomy 7/ 7q- (less than 3 chromosomal abnormalities)",
+        "NUP98-NSD1(normal karyotype)",
+        "t(8;21)(q22;q22)/RUNX1-RUNX1T1 (Irrespective of additional cytogenetic abnormalities)",
+        "inv(16)(p13.1q22)/t(16;16)(p13.1;q22)/CBFB-MYH11 (Irrespective of additional cytogenetic abnormalities)",
+        "EVI1 rearrangements (+EVI1 FISH positive) (Irrespective of additional cytogenetic abnormalities)",
+        "t(6;9)(p23;q34) (Irrespective of additional cytogenetic abnormalities)",
+        "Monosomy17/del17p (less than 3 chromosomal abnormalities)",
+        "Hyperdiploid numerical abnormalities only"]
+
+arr = Array{String, 2}(undef, (300, length(cytogenetics)))
+for i in 1:300
+    arr[i, :] = cytogenetics
+end 
+bin_cyto = cf_df[:,"Cytogenetic group"] .== arr
+bin_cf = DataFrame(Dict([("cyt$(lpad(string(i),2,'0'))",bin_cyto[:,i]) for i in 1:size(bin_cyto)[2]]))
+bin_cf[:,"npm1"] = cf_df[:,"NPM1 mutation"] .== 1
+bin_cf[:,"flt3"] = cf_df[:,"FLT3-ITD mutation"] .== 1
+bin_cf[:,"idh1"] = cf_df[:,"IDH1-R132 mutation"] .== 1
+bin_cf[:,"ag60"] = cf_df[:,"Age_at_diagnosis"] .> 60
+bin_cf[:,"sexF"] = cf_df[:,"Sex"] .== 1
+
+data = bin_cf 
+for i in 2:size(lsc17_df[:,2:end])[2]
+    data[:,"lsc$(lpad(string(i), 2, "0"))"] = lsc17_df[:,i]
+end 
+
+names(data)
+folds = split_train_test(data, nfolds = 10)
+folds[1].train
 ##########################################################################
 ##### Baseline : CPHDNN on cyto-group + mutations + LSC17 ################
 ##########################################################################
@@ -108,7 +138,7 @@ Y_t_surv = gpu(Matrix(Y_t_surv[sorted_ids,:]))
 X_t_redux = gpu(X_t_redux'[:,sorted_ids])
 
 include("cphdnn.jl")
-CPHDNN_params = CPHDNN_Params(X_redux, Y_surv, "CPHDNN_train", outdir;
+CPHDNN_params = CPHDNN_Params(X, Y_surv, "CPHDNN_train", outdir;
     nepochs = 80_000,
     tr = 1e-2,
     wd = 1e-8,
@@ -224,13 +254,28 @@ function train_CPHDNN(X, Y, CPHDNN_params, opt)
     return CPHDNN_model, tr_loss 
 end 
 opt = Flux.ADAM(CPHDNN_params.tr)
-CPHDNN_model, tr_loss = train_CPHDNN(X_redux, Y_surv, CPHDNN_params, opt)
+Y_surv = cf_df[folds[1].train_ids, ["Overall_Survival_Time_days","Overall_Survival_Status"]]
+rename!(Y_surv, ["T", "E"])
+sorted_ids = reverse(sortperm(Y_surv[:,"T"]))
+Y_surv = gpu(Matrix(Y_surv[sorted_ids,:]))
+X = gpu(Matrix(folds[1].train[sorted_ids,:])')
+
+CPHDNN_params = CPHDNN_Params(X, Y_surv, "CPHDNN_train", outdir;
+    nepochs = 80_000,
+    tr = 1e-2,
+    wd = 1e-8,
+    hl1=50, 
+    hl2=50, 
+    clip=true
+)
+CPHDNN_model, tr_loss = train_CPHDNN(X, Y_surv, CPHDNN_params, opt)
+
 cc_train = concordance_index(CPHDNN_model.net(X_redux), Y_surv) # concordance on train set 
 cc_test = concordance_index(CPHDNN_model.net(X_t_redux), Y_t_surv)# concordance on test set 
 println("concordance index - train:$cc_train \tvalid: $cc_test")
 cc_test = concordance_index(-CPHDNN_model.net(X_t_redux), Y_t_surv)# concordance on test set 
 
-X_redux
+
 
 #######
 #######

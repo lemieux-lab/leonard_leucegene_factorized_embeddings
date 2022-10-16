@@ -200,34 +200,7 @@ function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, 
     dump_cb(model, params, params.nepochs + restart)
     return tr_loss, tr_epochs  # patient_embed, model, final_acc
 end 
-function inference(X_t, Y_t, model, params, dump_cb; nepochs_tst = 600, nseeds = 100)
-    nsamples = max(X_t[1]...)
-    positions = Array{Float32, 2}(undef, (nseeds * nsamples, 3))
-    for i in ProgressBar(1:nseeds)
-        inference_mdl = new_model_embed_1_reinit(model, nsamples)
-        tst_loss = train_patient_embed(X_t, Y_t, dump_cb, params, inference_mdl, nepochs = nepochs_tst)
-        pos = inference_mdl.embed_1.weight
-        positions[(i -1) * nsamples + 1: i * nsamples, 1] = pos[1,:]
-        positions[(i -1) * nsamples + 1: i * nsamples, 2] = pos[2,:] 
-        positions[(i -1) * nsamples + 1: i * nsamples, 3] = my_cor(inference_mdl.net(X_t), Y_t, X_t[1])
-    end 
-    return positions
-end 
-function train_patient_embed(X, Y, dump_cb, params, inf_model::FE_model; nepochs = 10_000)
-    tst_loss = []
-    opt = Flux.ADAM(params.tr)
-    for iter in 1:nepochs
-        ps = Flux.params(inf_model.embed_1)
-        push!(tst_loss, loss(X, Y, inf_model, params.wd))
-        dump_cb(inf_model, params, iter; phase = "test")
-        gs = gradient(ps) do 
-            Flux.Losses.mse(inf_model.net(X), Y) + l2_penalty(inf_model) * params.wd
-        end
-        Flux.update!(opt,ps, gs)
-    end 
-    dump_cb(inf_model, params, nepochs ;phase = "test")
-    return tst_loss 
-end 
+
 
 function post_run(X, Y, model, tr_loss, tr_epochs, params)
     # patient_embed = cpu(model.net[1][1].weight')
@@ -247,6 +220,55 @@ function post_run(X, Y, model, tr_loss, tr_epochs, params)
         ## pred-true corr all patients
         ## by group (interest) 
 end
+
+
+function inference(X_t, Y_t, model, params, dump_cb; nepochs_tst = 600, nseeds = 100)
+    nsamples = max(X_t[1]...)
+    positions = Array{Float32, 2}(undef, (nseeds * nsamples, 3))
+    for i in ProgressBar(1:nseeds)
+        inference_mdl = new_model_embed_1_reinit(model, nsamples)
+        tst_loss = train_patient_embed(X_t, Y_t, dump_cb, params, inference_mdl, nepochs = nepochs_tst)
+        pos = inference_mdl.embed_1.weight
+        positions[(i -1) * nsamples + 1: i * nsamples, 1] = pos[1,:]
+        positions[(i -1) * nsamples + 1: i * nsamples, 2] = pos[2,:] 
+        positions[(i -1) * nsamples + 1: i * nsamples, 3] = my_cor(inference_mdl.net(X_t), Y_t, X_t[1])
+    end 
+    return positions
+end 
+
+
+
+function train_patient_embed(X, Y, dump_cb, params, inf_model::FE_model; nepochs = 10_000)
+    tst_loss = []
+    opt = Flux.ADAM(params.tr)
+    for iter in 1:nepochs
+        ps = Flux.params(inf_model.embed_1)
+        push!(tst_loss, loss(X, Y, inf_model, params.wd))
+        dump_cb(inf_model, params, iter; phase = "test")
+        gs = gradient(ps) do 
+            Flux.Losses.mse(inf_model.net(X), Y) + l2_penalty(inf_model) * params.wd
+        end
+        Flux.update!(opt,ps, gs)
+    end 
+    dump_cb(inf_model, params, nepochs ;phase = "test")
+    return tst_loss 
+end 
+
+#####
+##### determine global minimum / most likely inferred position in embedding
+#####
+function inference_post_run(positions; nsamples = 30, nseeds = 100)
+    tst_embed = Array{Float32, 2}(undef, (nsamples, 3))
+    for sample_id in 1:nsamples
+        sample_seeds = positions[[(seedn -1) * nsamples + sample_id for seedn in 1:nseeds],:] 
+        hit = sample_seeds[findall(sample_seeds[:,3] .== max(sample_seeds[:,3]...))[1],:]
+        tst_embed[sample_id,:] = hit  
+    end
+    return tst_embed
+end 
+#####
+##### merge and annotate two sets 
+#####
 
 function replace_layer(net::FE_model, new_f1_size::Int)
     new_model = deepcopy(net)

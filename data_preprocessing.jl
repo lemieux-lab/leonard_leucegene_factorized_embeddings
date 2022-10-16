@@ -26,10 +26,28 @@ struct FoldData
     test::Data
     test_ids::Array
 end
+function split_train_test(data::DataFrame; nfolds::Int=10)
+    nfolds = 10
+    folds = Array{FoldData, 1}(undef, nfolds)
+    
+    nsamples = length(data.factor_1)
+    fold_size = Int(floor(nsamples / nfolds))
+    ids = collect(1:nsamples) # or data.factor_1
+    shuffled_ids = shuffle(ids)
+    for i in 1:nfolds 
+        tst_ids = shuffled_ids[(i - 1) * fold_size + 1: min(nsamples, i * fold_size )]
+        tr_ids = setdiff(ids,tst_ids)
+
+        train = Data("train", data.data[tr_ids,:], data.factor_1[tr_ids], data.factor_2)
+        test = Data("train", data.data[tst_ids,:], data.factor_1[tst_ids], data.factor_2)
+
+        folds[i] = FoldData(train, tr_ids, test, tst_ids)
+    end 
+    return folds 
+end
 function split_train_test(data::Data; nfolds::Int=10)
     nfolds = 10
     folds = Array{FoldData, 1}(undef, nfolds)
-    data = ge_cds_all 
     nsamples = length(data.factor_1)
     fold_size = Int(floor(nsamples / nfolds))
     ids = collect(1:nsamples) # or data.factor_1
