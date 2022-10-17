@@ -61,7 +61,7 @@ end
 
 function CPHDNN(params::CPHDNN_Params, device = gpu)
     hl1 = device(Flux.Dense(params.insize,params.hl1_size, relu))
-    hl2 = device(Flux.Dense(params.hl1_size, params.hl2_size, relu))
+    hl2 = device(Flux.Dense(params.hl1_size, params.hl2_size, identity))
     outpl = device(Flux.Dense(params.hl2_size, 1, identity))
     net = device(Flux.Chain(
         hl1, hl2, outpl))

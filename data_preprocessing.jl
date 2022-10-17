@@ -35,7 +35,6 @@ struct FoldDataGen
 end
 
 function split_train_test(data::DataFrame; nfolds::Int=10)
-    nfolds = 10
     folds = Array{FoldDataGen, 1}(undef, nfolds)
     nfeatures = size(data)[2]
     nsamples = size(data)[1]
