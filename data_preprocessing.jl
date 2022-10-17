@@ -8,29 +8,37 @@ using CSV
 # using Random
 
 
-struct Data
+struct DataFE
     name::String
     data::Array
     factor_1::Array
     factor_2::Array
 end
 
-Base.getindex(d::Data, i::Int) = d.data[i,:]
-function Base.getindex(d::Data, ids::Vector)
-    return Data(d.name, d.data[ids,:], d.factor_1[ids], d.factor_2)
+Base.getindex(d::DataFE, i::Int) = d.data[i,:]
+function Base.getindex(d::DataFE, ids::Vector)
+    return DataFE(d.name, d.data[ids,:], d.factor_1[ids], d.factor_2)
 end 
 
-struct FoldData
-    train::Data
+struct FoldDataFE
+    train::DataFE
     train_ids::Array
-    test::Data
+    test::DataFE
     test_ids::Array
 end
+
+struct FoldDataGen
+    train::Array
+    train_ids::Array
+    test::Array
+    test_ids::Array
+end
+
 function split_train_test(data::DataFrame; nfolds::Int=10)
     nfolds = 10
-    folds = Array{FoldData, 1}(undef, nfolds)
-    
-    nsamples = length(data.factor_1)
+    folds = Array{FoldDataGen, 1}(undef, nfolds)
+    nfeatures = size(data)[2]
+    nsamples = size(data)[1]
     fold_size = Int(floor(nsamples / nfolds))
     ids = collect(1:nsamples) # or data.factor_1
     shuffled_ids = shuffle(ids)
@@ -38,16 +46,16 @@ function split_train_test(data::DataFrame; nfolds::Int=10)
         tst_ids = shuffled_ids[(i - 1) * fold_size + 1: min(nsamples, i * fold_size )]
         tr_ids = setdiff(ids,tst_ids)
 
-        train = Data("train", data.data[tr_ids,:], data.factor_1[tr_ids], data.factor_2)
-        test = Data("train", data.data[tst_ids,:], data.factor_1[tst_ids], data.factor_2)
+        train = Matrix(data[tr_ids,:])
+        test = Matrix(data[tst_ids,:])
 
-        folds[i] = FoldData(train, tr_ids, test, tst_ids)
+        folds[i] = FoldDataGen(train, tr_ids, test, tst_ids)
     end 
-    return folds 
+    return folds, fold_size
 end
-function split_train_test(data::Data; nfolds::Int=10)
+function split_train_test(data::DataFE; nfolds::Int=10)
     nfolds = 10
-    folds = Array{FoldData, 1}(undef, nfolds)
+    folds = Array{FoldDataFE, 1}(undef, nfolds)
     nsamples = length(data.factor_1)
     fold_size = Int(floor(nsamples / nfolds))
     ids = collect(1:nsamples) # or data.factor_1
@@ -56,8 +64,8 @@ function split_train_test(data::Data; nfolds::Int=10)
         tst_ids = shuffled_ids[(i - 1) * fold_size + 1: min(nsamples, i * fold_size )]
         tr_ids = setdiff(ids,tst_ids)
 
-        train = Data("train", data.data[tr_ids,:], data.factor_1[tr_ids], data.factor_2)
-        test = Data("train", data.data[tst_ids,:], data.factor_1[tst_ids], data.factor_2)
+        train = DataFE("train", data.data[tr_ids,:], data.factor_1[tr_ids], data.factor_2)
+        test = DataFE("test", data.data[tst_ids,:], data.factor_1[tst_ids], data.factor_2)
 
         folds[i] = FoldData(train, tr_ids, test, tst_ids)
     end 
@@ -74,10 +82,10 @@ function split_train_test_interest_groups(data, cf_df::DataFrame; n::Int=10)
     tst_ids = interest[1:(min(n, length(interest)))]
     tr_ids = setdiff(collect(1:size(data.data)[1]), tst_ids)
 
-    train = Data("train", data.data[tr_ids,:], data.factor_1[tr_ids], data.factor_2)
-    test = Data("test", data.data[tst_ids,:], data.factor_1[tst_ids], data.factor_2)
+    train = DataFE("train", data.data[tr_ids,:], data.factor_1[tr_ids], data.factor_2)
+    test = DataFE("test", data.data[tst_ids,:], data.factor_1[tst_ids], data.factor_2)
 
-    fd = FoldData(train, tr_ids, test, tst_ids)
+    fd = FoldDataFE(train, tr_ids, test, tst_ids)
     return fd
 end
 
@@ -149,6 +157,6 @@ function log_transf_high_variance(df::DataFrame; frac_genes = 0.1, avg_norm=fals
         data_full = data_full .- mean(data_full, dims = 1)
     end
     cols = cols[hvg]
-    new_data = Data("full", data_full, index, cols)
+    new_data = DataFE("full", data_full, index, cols)
     return new_data
 end

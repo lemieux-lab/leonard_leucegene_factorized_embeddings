@@ -23,7 +23,7 @@ struct Params
     set::String
     clip::Bool
 
-    function Params(input_data::Data, cf, outdir;
+    function Params(input_data::DataFE, cf, outdir;
         nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,hl1=50,hl2=10, 
         clip=true)
         modelid = "FE_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
