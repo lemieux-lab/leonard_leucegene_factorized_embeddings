@@ -48,10 +48,9 @@ data = bin_cf
 for i in 2:size(lsc17_df[:,2:end])[2]
     data[:,"lsc$(lpad(string(i), 2, "0"))"] = lsc17_df[:,i]
 end 
-
+data = data[:,findall(vec(var(Matrix(data), dims = 1) .> 0.01))]
 names(data)
-nfolds = 10
-folds, foldsize  = split_train_test(data, nfolds = nfolds)
+nfolds = 5
 
 ##########################################################################
 ##### Baseline : CPHDNN on cyto-group + mutations + LSC17 ################
@@ -69,46 +68,54 @@ folds, foldsize  = split_train_test(data, nfolds = nfolds)
 ####### CPHDNN training ########
 ################################
 include("cphdnn.jl")
-scores = Array{Float32,1}(undef, nsamples)
-true_s = Array{Float32,2}(undef, (nsamples, 2))
-for foldn in 1:nfolds 
-    println("FOLD $foldn")
-    #### DATA ######################
-    #### training set ############## 
-    X = folds[foldn].train
-    Y = cf_df[folds[foldn].train_ids, ["Overall_Survival_Time_days","Overall_Survival_Status"]]
-    rename!(Y, ["T", "E"])
-    sorted_ids = reverse(sortperm(Y[:,"T"]))
-    Y = gpu(Matrix(Y[sorted_ids,:]))
-    X = gpu(X'[:,sorted_ids])
+function evaluate(data, nfolds = 5)
+    nsamples = size(data)[1]
+    folds, foldsize  = split_train_test(data, nfolds = nfolds)
+    scores = Array{Float32,1}(undef, nsamples)
+    true_s = Array{Float32,2}(undef, (nsamples, 2))
+    for foldn in 1:length(folds) 
+        println("FOLD $foldn")
+        #### DATA ######################
+        #### training set ############## 
+        X = folds[foldn].train
+        Y = cf_df[folds[foldn].train_ids, ["Overall_Survival_Time_days","Overall_Survival_Status"]]
+        rename!(Y, ["T", "E"])
+        sorted_ids = reverse(sortperm(Y[:,"T"]))
+        Y = gpu(Matrix(Y[sorted_ids,:]))
+        X = gpu(X'[:,sorted_ids])
 
-    #### test set ##################
-    X_t = folds[foldn].test
-    Y_t = cf_df[folds[foldn].test_ids, ["Overall_Survival_Time_days","Overall_Survival_Status"]]
-    rename!(Y_t, ["T", "E"])
-    sorted_ids = reverse(sortperm(Y_t[:,"T"]))
-    Y_t = gpu(Matrix(Y_t[sorted_ids,:]))
-    X_t = gpu(X_t'[:,sorted_ids])
+        #### test set ##################
+        X_t = folds[foldn].test
+        Y_t = cf_df[folds[foldn].test_ids, ["Overall_Survival_Time_days","Overall_Survival_Status"]]
+        rename!(Y_t, ["T", "E"])
+        sorted_ids = reverse(sortperm(Y_t[:,"T"]))
+        Y_t = gpu(Matrix(Y_t[sorted_ids,:]))
+        X_t = gpu(X_t'[:,sorted_ids])
 
-    CPHDNN_params = CPHDNN_Params(X, Y, "CPHDNN_train_$foldn", outdir;
-        nepochs = 40_000,
-        tr = 1e-2,
-        wd = 1,
-        hl1=50, 
-        hl2=50, 
-        clip=true
-    )
-    CPHDNN_model, tr_loss, prev_m = train_CPHDNN(X, Y, CPHDNN_params)
+        CPHDNN_params = CPHDNN_Params(X, Y, "CPHDNN_train_$foldn", outdir;
+            nepochs = 200,
+            tr = 1e-4,
+            wd = 1e-3,
+            hl1=143, 
+            hl2=143, 
+            clip=true
+        )
+        CPHDNN_model, tr_loss, prev_m = train_CPHDNN(X, Y, CPHDNN_params)
 
-    cc_train = concordance_index(CPHDNN_model.net(X), Y) # concordance on train set 
-    cc_test = concordance_index(CPHDNN_model.net(X_t), Y_t)# concordance on test set 
-    println("FOLD $foldn \t concordance index - train:$cc_train \tvalid: $cc_test")
-    scores[(foldn -1) * foldsize + 1 : foldn * foldsize] = cpu(CPHDNN_model.net(X_t))
-    true_s[(foldn -1) * foldsize + 1 : foldn * foldsize,:] = cpu(Y_t)
+        cc_train = concordance_index(CPHDNN_model.net(X), Y) # concordance on train set 
+        cc_test = concordance_index(CPHDNN_model.net(X_t), Y_t)# concordance on test set 
+        println("FOLD $foldn \t concordance index - train:$cc_train \tvalid: $cc_test")
+        scores[(foldn -1) * foldsize + 1 : foldn * foldsize] = cpu(CPHDNN_model.net(X_t))
+        true_s[(foldn -1) * foldsize + 1 : foldn * foldsize,:] = cpu(Y_t)
+    end
+
+    cs = bootstrapped_c_index(scores, true_s, n=10_000)
+    println("bootstrapped c_index : $(median(cs)) \t ($(cs[Int(round(length(cs)*0.025))]), $(cs[Int(round(length(cs)*0.975))]))")
 end
-include("cphdnn.jl")
-cs = bootstrapped_c_index(scores, true_s)
-println("bootstrapped c_index : $(median(cs)) \t ($(cs[Int(round(length(cs)*0.25))]), $(cs[Int(round(length(cs)*0.75))]))")
+
+for rep_n in 1:3
+    evaluate(data)
+end
 #######
 #######
 # for each fold (10) do:
