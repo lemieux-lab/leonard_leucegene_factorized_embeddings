@@ -42,13 +42,13 @@ bin_cf[:,"npm1"] = cf_df[:,"NPM1 mutation"] .== 1
 bin_cf[:,"flt3"] = cf_df[:,"FLT3-ITD mutation"] .== 1
 bin_cf[:,"idh1"] = cf_df[:,"IDH1-R132 mutation"] .== 1
 bin_cf[:,"ag60"] = cf_df[:,"Age_at_diagnosis"] .> 60
-bin_cf[:,"sexF"] = cf_df[:,"Sex"] .== 1
+bin_cf[:,"sexF"] = cf_df[:,"Sex"] .== "F"
 
 data = bin_cf 
-for i in 2:size(lsc17_df[:,2:end])[2]
-    data[:,"lsc$(lpad(string(i), 2, "0"))"] = lsc17_df[:,i]
+for i in 2:size(lsc17_df)[2] 
+    data[:,"lsc$(lpad(string(i -1), 2, "0"))"] = lsc17_df[:,i]
 end 
-data = data[:,findall(vec(var(Matrix(data), dims = 1) .> 0.01))]
+#data = data[:,findall(vec(var(Matrix(data), dims = 1) .> 0.01))]
 names(data)
 nfolds = 5
 
@@ -67,6 +67,7 @@ nfolds = 5
 ################################
 ####### CPHDNN training ########
 ################################
+
 include("cphdnn.jl")
 function evaluate(data, nfolds = 5)
     nsamples = size(data)[1]
@@ -87,17 +88,17 @@ function evaluate(data, nfolds = 5)
         #### test set ##################
         X_t = folds[foldn].test
         Y_t = cf_df[folds[foldn].test_ids, ["Overall_Survival_Time_days","Overall_Survival_Status"]]
-        rename!(Y_t, ["T", "E"])
-        sorted_ids = reverse(sortperm(Y_t[:,"T"]))
-        Y_t = gpu(Matrix(Y_t[sorted_ids,:]))
-        X_t = gpu(X_t'[:,sorted_ids])
+        # rename!(Y_t, ["T", "E"])
+        # sorted_ids = reverse(sortperm(Y_t[:,"T"]))
+        Y_t = gpu(Matrix(Y_t))
+        X_t = gpu(X_t')
 
         CPHDNN_params = CPHDNN_Params(X, Y, "CPHDNN_train_$foldn", outdir;
             nepochs = 200,
             tr = 1e-4,
-            wd = 1e-3,
-            hl1=143, 
-            hl2=143, 
+            wd = 1e-8,
+            hl1=1, 
+            hl2=1, 
             clip=true
         )
         CPHDNN_model, tr_loss, prev_m = train_CPHDNN(X, Y, CPHDNN_params)
@@ -105,16 +106,17 @@ function evaluate(data, nfolds = 5)
         cc_train = concordance_index(CPHDNN_model.net(X), Y) # concordance on train set 
         cc_test = concordance_index(CPHDNN_model.net(X_t), Y_t)# concordance on test set 
         println("FOLD $foldn \t concordance index - train:$cc_train \tvalid: $cc_test")
-        scores[(foldn -1) * foldsize + 1 : foldn * foldsize] = cpu(CPHDNN_model.net(X_t))
-        true_s[(foldn -1) * foldsize + 1 : foldn * foldsize,:] = cpu(Y_t)
+        scores[(foldn -1) * foldsize + 1 : foldn * foldsize] = CPHDNN_model.net(X_t)
+        true_s[(foldn -1) * foldsize + 1 : foldn * foldsize,:] = Y_t
     end
 
     cs = bootstrapped_c_index(scores, true_s, n=10_000)
     println("bootstrapped c_index : $(median(cs)) \t ($(cs[Int(round(length(cs)*0.025))]), $(cs[Int(round(length(cs)*0.975))]))")
+    return scores, true_s
 end
 
 for rep_n in 1:3
-    evaluate(data)
+    scores, true_s = evaluate(data)
 end
 #######
 #######

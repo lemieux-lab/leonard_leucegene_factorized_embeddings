@@ -126,38 +126,59 @@ function cox_negative_log_likelihood(CPHDNN_model, X, Y, wd)
     return neg_likelihood + l2_penalty(CPHDNN_model) * wd
 end 
 
+# function concordance_index(S, Y)
+#     function helper(S, Y)
+#         T = Y[:,1]
+#         E = (Y[:,2] .== 1.0)
+#         concordant = 0 
+#         discordant = 0
+#         for i in 1:length(S)
+#             for j in 1:length(S)
+#                 if j > i && E[i] != 0
+#                     δi = j - i  
+#                     δs = S[i] - S[j]
+#                     tmp_c = - δs * sign(δi)
+#                     tmp_c > 0 && (concordant += 1)
+#                     tmp_c < 0 && (discordant += 1)
+#                 end 
+#             end
+#         end
+#         c_index = concordant / (concordant + discordant)
+#         return c_index
+#     end 
+#     c = helper(S,Y)
+#     if c < 0.5 
+#         c = helper(-S, Y)
+#     end
+#     return c 
+# end
+
 function concordance_index(S, Y)
-    function helper(S, Y)
+    function helper(S,Y)
+        #vector computation of c_index 
+        n = length(S)
         T = Y[:,1]
         E = (Y[:,2] .== 1.0)
-        concordant = 0 
-        discordant = 0
-        for i in 1:length(S)
-            for j in 1:length(S)
-                if j > i && E[i] != 0
-                    δi = j - i  
-                    δs = S[i] - S[j]
-                    tmp_c = - δs * sign(δi)
-                    tmp_c > 0 && (concordant += 1)
-                    tmp_c < 0 && (discordant += 1)
-                end 
-            end
-        end
-        c_index = concordant / (concordant + discordant)
-        return c_index
+        concordant_pairs = S .> S'
+        tied_pairs = sum(S .== S', dims = 1)' - gpu(ones(length(S)))
+        admissable_pairs = T .< T'
+        c_ind = sum(E' .* admissable_pairs .* concordant_pairs)+ 0.5 * sum(tied_pairs)
+        c_ind = c_ind / (sum(E .* sum(admissable_pairs, dims = 1)') + sum(tied_pairs))
+        return c_ind 
     end 
     c = helper(S,Y)
     if c < 0.5 
         c = helper(-S, Y)
     end
     return c 
-end
+end 
+
 function bootstrapped_c_index(S, Y; n = 1000)
     ns = length(S)
     cs = Array{Float32, 1}(undef, n)
     for i in 1:n
         sample = StatsBase.sample(collect(1:ns), ns)
-        cs[i] = concordance_index(S[sample], Y[sample,:])
+        cs[i] = concordance_index(gpu(S[sample]), gpu(Y[sample,:]))
     end 
     return sort(cs)
 end
