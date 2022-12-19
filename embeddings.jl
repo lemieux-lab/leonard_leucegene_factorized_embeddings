@@ -124,9 +124,10 @@ function dump_patient_emb(cf, dump_freq)
                 embeddf.index = cf.sampleID
                 embeddf.interest_groups = cf.interest_groups
                 embeddf.sex = cf.Sex
-                embeddf.npm1 = map(x -> ["wt", "mut"][Int(x) + 1], cf[:,"NPM1 mutation"])
+                embeddf.npm1 = map(x -> ["wt", "mut"][Int(parse(Float64,x)) + 1], cf[:,"NPM1 mutation"])
                 embeddf.RNASEQ_protocol = cf.RNASEQ_protocol
-                embeddf.cyto_group = cf[:,"Cytogenetic group"]
+                embeddf.WHO = cf[:,"WHO classification"]
+                embeddf.cyto_risk = cf[:, "Cytogenetic risk"]
                 CSV.write( embedfile, embeddf)
             end 
             # saving model in bson (serialised format for restart and investigation)
@@ -224,14 +225,13 @@ end
 
 function inference(X_t, Y_t, model, params, dump_cb; nepochs_tst = 600, nseeds = 100)
     nsamples = max(X_t[1]...)
-    positions = Array{Float32, 2}(undef, (nseeds * nsamples, 3))
+    positions = Array{Float32, 2}(undef, (nseeds * nsamples, params.emb_size_1 + 1))
     for i in ProgressBar(1:nseeds)
         inference_mdl = new_model_embed_1_reinit(model, nsamples)
         tst_loss = train_patient_embed(X_t, Y_t, dump_cb, params, inference_mdl, nepochs = nepochs_tst)
         pos = inference_mdl.embed_1.weight
-        positions[(i -1) * nsamples + 1: i * nsamples, 1] = pos[1,:]
-        positions[(i -1) * nsamples + 1: i * nsamples, 2] = pos[2,:] 
-        positions[(i -1) * nsamples + 1: i * nsamples, 3] = my_cor(inference_mdl.net(X_t), Y_t, X_t[1])
+        positions[(i -1) * nsamples + 1: i * nsamples, 1:params.emb_size_1] = pos[1:params.emb_size_1,:]'
+        positions[(i -1) * nsamples + 1: i * nsamples, params.emb_size_1 + 1] = my_cor(inference_mdl.net(X_t), Y_t, X_t[1])
     end 
     return positions
 end 
@@ -258,10 +258,10 @@ end
 ##### determine global minimum / most likely inferred position in embedding
 #####
 function inference_post_run(positions; nsamples = 30, nseeds = 100)
-    tst_embed = Array{Float32, 2}(undef, (nsamples, 3))
+    tst_embed = Array{Float32, 2}(undef, (nsamples, size(positions)[2] ))
     for sample_id in 1:nsamples
         sample_seeds = positions[[(seedn -1) * nsamples + sample_id for seedn in 1:nseeds],:] 
-        hit = sample_seeds[findall(sample_seeds[:,3] .== max(sample_seeds[:,3]...))[1],:]
+        hit = sample_seeds[findall(sample_seeds[:,end] .== max(sample_seeds[:,end]...))[1],:]
         tst_embed[sample_id,:] = hit  
     end
     return tst_embed

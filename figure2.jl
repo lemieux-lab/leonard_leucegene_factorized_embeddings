@@ -5,12 +5,6 @@
 # 3 replicates
 # concordance index
 
-CDS
-PCA
-TSNE 
-LSC17 
-CYTO_MUT 
-FE 
 
 include("init.jl")
 
@@ -44,7 +38,7 @@ params = Params(folds[1].train, cf_df[folds[1].train_ids,:], outdir;
     nepochs = 80_000,
     tr = 1e-2,
     wd = 1e-8,
-    emb_size_1 = 2, 
+    emb_size_1 = 50, 
     emb_size_2 = 50, 
     hl1=50, 
     hl2=50, 
@@ -68,10 +62,10 @@ post_run(X, Y, model, tr_loss, epochs, params)
 ################################
 include("embeddings.jl")
 X_t, Y_t = prep_FE(folds[1].test)
+inference_mdl = new_model_embed_1_reinit(model, nsamples)        
 positions = inference(X_t, Y_t, model, params, dump_cb, nepochs_tst = 600, nseeds = 100) # 600, 100 --> ~ 5 mins
+include("embeddings.jl")
 tst_embed = inference_post_run(positions, nsamples = length(folds[1].test_ids), nseeds = 100)
-
-
 
 function merge_annotate_train_test_embeds(fold, model, tst_embed, cf_df)
     ntotal = size(cf_df)[1]
@@ -85,6 +79,7 @@ function merge_annotate_train_test_embeds(fold, model, tst_embed, cf_df)
 end
 merged = merge_annotate_train_test_embeds(folds[1], model, tst_embed, cf_df)
 CSV.write("$(params.model_outdir)_fold1_train_test.csv", merged)
+
 system(`R -f plotting_train_test_embed.R`)
 
 ################################
@@ -100,7 +95,7 @@ Y_surv = gpu(Matrix(Y_surv[sorted_ids,:]))
 X_redux = X_redux[:,sorted_ids]
 
 #### test set ##################
-X_t_redux = tst_embed[:,1:2]
+X_t_redux = tst_embed[:,1:params.emb_size_1]
 Y_t_surv = cf_df[folds[1].test_ids, ["Overall_Survival_Time_days","Overall_Survival_Status"]]
 rename!(Y_t_surv, ["T", "E"])
 sorted_ids = reverse(sortperm(Y_t_surv[:,"T"]))
@@ -111,7 +106,7 @@ include("cphdnn.jl")
 CPHDNN_params = CPHDNN_Params(X_redux, Y_surv, "CPHDNN_train", outdir;
     nepochs = 80_000,
     tr = 1e-2,
-    wd = 1e-8,
+    wd = 10,
     hl1=50, 
     hl2=50, 
     clip=true
@@ -224,7 +219,7 @@ function train_CPHDNN(X, Y, CPHDNN_params, opt)
     return CPHDNN_model, tr_loss 
 end 
 opt = Flux.ADAM(CPHDNN_params.tr)
-CPHDNN_model, tr_loss = train_CPHDNN(X_redux, Y_surv, CPHDNN_params, opt)
+CPHDNN_model, tr_loss = train_CPHDNN(X_redux, Y_surv, CPHDNN_params)
 cc_train = concordance_index(CPHDNN_model.net(X_redux), Y_surv) # concordance on train set 
 cc_test = concordance_index(CPHDNN_model.net(X_t_redux), Y_t_surv)# concordance on test set 
 println("concordance index - train:$cc_train \tvalid: $cc_test")

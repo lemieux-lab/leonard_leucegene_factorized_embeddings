@@ -6,7 +6,7 @@ setwd("/u/sauves/leonard_leucegene_factorized_embeddings/RES/EMBEDDINGS")
 outdir = "embeddings_2022-10-16T14:25:49.049/FE_bf465440b6909ee943190"
 filename = paste(outdir, "_fold1_train_test.csv", sep = "")
 data = read.csv(filename) %>% mutate(set = ifelse(train == 1, "train", "test"))
-g = ggplot(data, aes(x = embed1, y = embed2, col = Cytogenetic.group, shape = set)) + 
+ggplot(data, aes(x = embed1, y = embed2, col = Cytogenetic.group, shape = set)) + 
   geom_point(size = 5, alpha = 0.5) +ggtitle(filename) + 
   scale_x_continuous(breaks = seq(-10,10,2)) + 
   scale_y_continuous(breaks = seq(-10,10,2)) + 

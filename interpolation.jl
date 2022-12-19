@@ -28,13 +28,26 @@ function make_grid(nb_genes::Int64; grid_size::Int64=10, min::Int64=-3, max::Int
     return gpu(coords), grid#, gpu(gene_id_by_coord), grid
 end
 
-
-
-
+function interpolate(expr_data::Matrix, selected_samples::Array{String}, model::FE_model, params::Params; grid_size = 10, min = -5, max = 5)
+    
+end 
+function make_grid_opt(;nb_genes = 15, grid_size = 10, mymin = -2, mymax = 2)
+    function myrange(grid_size, min, max)
+        step_size = (max - min) / grid_size
+        ran = [min + (i -1 ) * step_size for i in 1:grid_size+1]
+        return ran 
+    end 
+    ran = myrange(grid_size, mymin, mymax)
+    coords = hcat(  vec(reshape(ran, (grid_size +1 , 1)) .* ones((grid_size + 1, nb_genes))), 
+                    vec(reshape(ran, (1, grid_size + 1)) .* ones(( nb_genes, grid_size + 1))))
+    grid =   hcat(  vec(reshape(ran, (grid_size+1, 1)) .* ones((grid_size + 1, grid_size +1 ))),
+                    vec(reshape(ran, (1, grid_size + 1)) .* ones((grid_size + 1, grid_size +1 ))))
+    return gpu(coords), grid 
+end 
 
 function interpolate(expr_data::Matrix, selected_sample, model, params ; grid_size = 10, min = -5, max = 5)
     println("Creating grid ...")
-    coords, grid = make_grid(params.insize, grid_size=grid_size, min = min, max =max)
+    coords, grid = make_grid_opt(params.insize, grid_size=grid_size, min = min, max =max)
     true_expr = gpu(expr_data[selected_sample,:])
     gene_embed = model.embed_2.weight
     metric_1  = Array{Float64, 1}(undef, (grid_size +1)^2 ) 
