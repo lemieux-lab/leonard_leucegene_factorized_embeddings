@@ -111,7 +111,7 @@ function get_interest_groups(target)
         return "inv(16)"
     
     elseif occursin("t(8;21)", target)
-        return "t(t8;21)"
+        return "t(8;21)"
     
     elseif occursin("t(9;11)", target)
         return "t(9;11)"

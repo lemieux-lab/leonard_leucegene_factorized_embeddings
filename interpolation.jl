@@ -18,7 +18,7 @@ function make_grid(nb_genes::Int64; grid_size::Int64=10, min::Int64=-3, max::Int
     coords = Array{Float64, 2}(undef, (grid_size ^2 * nb_genes, 2))
     # gene_id_by_coord = Array{Int64}(undef, grid_size^2 * nb_genes, 1)
     grid = Array{Float64, 2}(undef, (grid_size ^ 2, 2))
-    for i = ProgressBar(1:grid_size), j = 1:grid_size, g = 1:nb_genes
+    for i::Int = ProgressBar(1:grid_size), j = 1:grid_size, g = 1:nb_genes
         coords[((i-1)+(j-1)*grid_size)*nb_genes + (g-1) + 1, 1] = min + (i -1) * step_size
         coords[((i-1)+(j-1)*grid_size)*nb_genes + (g-1) + 1, 2] = min + (j -1) * step_size
         #gene_id_by_coord[((i-1)+(j-1)*grid_size)*nb_genes + (g-1) + 1] = g
