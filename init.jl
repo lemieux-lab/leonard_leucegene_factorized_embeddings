@@ -4,17 +4,18 @@ if isfile("Project.toml") && isfile("Manifest.toml")
     Pkg.activate(".")
 end
 
-# @time using SHA
-# @time using Random
-# @time using RedefStructs 
-# @time using ProgressBars
+# imports  
+using CSV
+using DataFrames
+using JSON
+using ProgressBars
+using HDF5
+using Statistics
+using Flux 
+using CairoMakie 
+using Random
 using Dates
-# @time using TSne
-# @time using Statistics
-# @time using CUDA
-# @time using DataFrames
-# @time using CSV
-# @time using Flux
+using AlgebraOfGraphics
 
 function set_dirs(basepath)
     outpath  = "./RES/EMBEDDINGS" # our output directory

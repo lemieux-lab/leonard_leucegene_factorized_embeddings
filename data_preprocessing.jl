@@ -105,6 +105,25 @@ function params_list_to_df(pl)
     ]))
     return df
 end
+function params_list_to_df_3_factors(pl)
+    df = DataFrame(Dict([
+    ("modelid", [p.modelid for p in pl]), 
+    ("emb_size_1", [p.emb_size_1 for p in pl]),
+    ("emb_size_2", [p.emb_size_2 for p in pl]),
+    ("emb_size_3", [p.emb_size_3 for p in pl]),
+    ("tr", [p.tr for p in pl]),
+    ("wd", [p.wd for p in pl]),
+    ("hl1_size", [p.hl1_size for p in pl]),
+    ("hl2_size", [p.hl2_size for p in pl]),
+    ("nepochs", [p.nepochs for p in pl]),
+    ("insize", [p.insize for p in pl]),
+    ("nsamples", [p.nsamples for p in pl]),
+    ("set", [p.set for p in pl]),
+    ("gr_clip", [p.clip for p in pl])
+    ]))
+    return df
+end
+
 
 function get_interest_groups(target)
     if  occursin( "inv(16)", target)

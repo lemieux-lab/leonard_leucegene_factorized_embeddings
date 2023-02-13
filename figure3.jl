@@ -148,23 +148,3 @@ fig5 = draw(q + p + r; axis=(width=512, height=512))
 
 save("$(params.model_outdir)_$(md.rows[selected_s])_interpolation.pdf", fig5)
 CSV.write("$(params.model_outdir)_$(md.rows[selected_s])_interpolation.txt", DataFrame(metrics))
-
-using ColorSchemes
-# heatmap(df.x, df.y, df.cor, c = cgrad([:white, :blue]))
-# TO DO 
-# text = param or save to pdf
-
-Base.getindex(d::DataFrame, s::String) = d[:,s] 
-md_df["Cytogenetic risk"]
-md_df[!,45] .= 1 # repeat([1] , size(md_df)[1]) 
-
-repeat([1] , size(md_df)[1])
-
-data(df[[selected_s],:]) * mapping(:emb1, :emb2) 
-draw(data(df[[selected_s],:]) * mapping(:emb1, :emb2) * visual(HLines))
-
-using MakieCore
-hlines
-subtypes(Lines)
-methods(draw)
-?

@@ -2,8 +2,8 @@ using HDF5
 
 struct GTEXData 
     data::Array{Float64, 2}
-    cols::Array{String31, 1}
-    rows::Array{String31, 1}
+    cols::Array{String, 1}
+    rows::Array{String, 1}
 end 
 function get_GTEX_data()
     inf = h5open("Data/GTEX/GTEX.out", "r")

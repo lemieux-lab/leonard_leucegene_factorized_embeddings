@@ -9,8 +9,12 @@ Rossi = read.table(url, header=TRUE)
 names(Rossi)
 mod.allison = coxph(Surv(week, arrest) ~ fin + age + race + wexp + mar + paro + prio, 
                     data=Rossi)
-summary(mod.allison)
-Rossi.fin = with(Rossi, 
+out = summary(mod.allison)
+sink("RES/CPH/summary1cph.txt")
+print(out)
+sink()
+
+Rossi.fin = with(Rossi,
                  data.frame(fin=c(0, 1), 
                             age=rep(mean(age), 2), 
                             race=rep(mean(race == "other"), 2),
@@ -21,7 +25,7 @@ Rossi.fin = with(Rossi,
 
 plot(survfit(mod.allison, newdata = Rossi.fin))
 #plot(survfit(mod.allison, newdata = Rossi.fin), conf.int = TRUE, col = c(2,3), lty = 2:3)
-legend(c("financial aid", "no aid"), lty = 2:3)
+legend(30, 0.5, c("financial aid", "no aid"), lty = 2:3)
 Rossi.fin
 ## Leucegene data
 setwd("leonard_leucegene_factorized_embeddings/")
@@ -36,8 +40,11 @@ Lgn = Lgn_raw %>% filter(!(WHO.classification %in% c("Acute megakaryoblastic leu
   filter(!(Induction_Type %in% c("Experimental palliative therapies")))
 
 mod.Lgn = coxph(Surv(Overall_Survival_Time_days, Overall_Survival_Status) ~ 
-                  WHO.classification + Age_at_diagnosis + FLT3.ITD.mutation + NPM1.mutation + IDH1.R132.mutation + Sex + Tissue, data = Lgn)
-summary(mod.Lgn)
+                  Cytogenetic.risk + Age_at_diagnosis + FLT3.ITD.mutation + NPM1.mutation + IDH1.R132.mutation + Sex + Tissue, data = Lgn)
+out = summary(mod.Lgn)
+sink("RES/CPH/summaryLGNcph.txt")
+print(out)
+sink()
 
 Lgn.NPM1 = with(Lgn, 
                 data.frame(NPM1.mutation = c(0,1), 
