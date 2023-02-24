@@ -35,7 +35,7 @@ struct GDC_data
     rows::Array 
     cols::Array
 end 
-function GDC_data(inputfile::String;log_transform=false)
+function GDC_data(inputfile::String; log_transform=false)
     tpm, cases, gnames = load_GDC_data(inputfile;log_transform=log_transform)
     return GDC_data(tpm, cases, gnames)
 end
@@ -44,21 +44,23 @@ function load_GDC_data(infile; log_transform = false)
     tpm_data = inf["data"][:,:]
     case_ids = inf["rows"][:]
     gene_names = inf["cols"][:] 
+    labels = inf["labels"][:]
     close(inf)
     if log_transform
         tpm_data = log10.(tpm_data .+1 )
     end 
-    return tpm_data, case_ids, gene_names 
+    return tpm_data, case_ids, gene_names, labels 
 end   
 
 
-function write_h5(dat::GDC_data, outfile)
+function write_h5(dat::GDC_data, labels, outfile)
     # HDF5
     # writing to hdf5 
     f = h5open(outfile, "w")
     f["data"] = dat.data
     f["rows"] = dat.rows
     f["cols"] = dat.cols
+    f["labels"] = labels 
     close(f)
 end 
 
