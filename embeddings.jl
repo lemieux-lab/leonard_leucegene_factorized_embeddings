@@ -217,6 +217,31 @@ function train!(X, Y, dump_cb, params, model::FE_model) # todo: sys. call back
 end 
 
 
+function train_SGD_inf_loop!(X, Y, dump_cb, params::Params, model::FE_model; batchsize = 20_000, restart::Int=0) # todo: sys. call back
+    opt = Flux.ADAM(params.tr)
+    nminibatches = Int(floor(length(Y) / batchsize))
+    shuffled_ids = shuffle(collect(1:length(Y)))
+    max_iter = params.nepochs 
+    iter = 1 
+    while iter < max_iter || max_iter < 0   
+        ps = Flux.params(model.net)
+        cursor = (iter -1)  % nminibatches + 1
+        # if cursor == 1 
+        #     shuffled_ids = shuffle(collect(1:length(Y))) # very inefficient
+        # end 
+        mb_ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, length(Y)))
+        ids = shuffled_ids[mb_ids]
+        X_, Y_ = (X[1][ids],X[2][ids]), Y[ids]
+        loss_val =  loss(X_, Y_, model, params.wd)
+        dump_cb(model, params, iter + restart, loss_val)
+        
+        gs = gradient(ps) do 
+            loss(X_, Y_, model, params.wd)
+        end
+        Flux.update!(opt,ps, gs)
+        iter = iter + 1
+    end 
+end 
 
 function train_SGD!(X, Y, dump_cb, params::Params, model::FE_model_3_factors; batchsize = 20_000, restart::Int=0) # todo: sys. call back
     tr_loss = []
