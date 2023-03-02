@@ -118,7 +118,6 @@ nminibatches = Int(floor(length(Y) / batchsize))
 
 model = FE_model(length(FE_data.factor_1), length(FE_data.factor_2), params)
 # model = FE_model_3_factors(length(FE_data.factor_1), length(FE_data.factor_2), length(unique(tissues_num)), params)
-
 function dump_tissue_cb(tissues, dump_freq)
     return (model, params, e; phase = "training") -> begin 
         if e % dump_freq == 0 || e == 1
