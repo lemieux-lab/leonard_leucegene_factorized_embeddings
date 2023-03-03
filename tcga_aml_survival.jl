@@ -200,7 +200,7 @@ DATA = TCGA.data
 cols = TCGA.cols 
 rows = TCGA.rows
 targets = label_binarizer(projects)
-function random_signatures(DATA, cols, targets; lengths = [1,2,3,5,10,15,20,25,30,40,50,75,100,200,500]; repn = 10)
+function random_signatures(DATA, cols, targets; lengths = [1,2,3,5,10,15,20,25,30,40,50,75,100,200,500], repn = 10)
     length_accs = Array{Float64, 2}(undef, (length(lengths) * repn, 2))
     for (row, l) in enumerate(lengths)     
         for repl in 1:repn

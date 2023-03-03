@@ -5,10 +5,10 @@ function get_GDC_CLIN_data_init_paths()
     # MANIFEST = CSV.read("data/gdc_manifest_GE_2023-02-02.txt", DataFrame)
     # IDS = CSV.read("data/sample.tsv", DataFrame)
     baseurl = "https://api.gdc.cancer.gov/data"
-    basepath = "Data/GDC"
+    basepath = "Data/DATA/GDC_processed"
     FILES = "$basepath/GDC_files.json"
     J = JSON.parsefile(FILES)
-    features = ["case_id", "project_id", "gender", "age_at_index","age_at_diagnosis", "days_to_death", "days_to_last_follow_up", "primary_diagnosis", "treatment_type"]
+    features = ["case_id", "case_submitter_id", "project_id", "gender", "age_at_index","age_at_diagnosis", "days_to_death", "days_to_last_follow_up", "primary_diagnosis", "treatment_type"]
     CLIN = CLIN_FULL[:, features]
     return J, CLIN_FULL, CLIN, baseurl, basepath
 end 
