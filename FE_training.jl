@@ -39,7 +39,7 @@ step_size_cb = 500 # steps interval between each dump call
 nminibatches = Int(floor(length(Y) / batchsize))
 
 
-gpu_arr = 
+
 
 model = FE_model(length(FE_data.factor_1), length(FE_data.factor_2), params)
 function to_cpu(model::FE_model)

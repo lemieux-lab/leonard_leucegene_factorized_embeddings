@@ -1,8 +1,6 @@
 # module Init
 using Pkg
-if isfile("Project.toml") && isfile("Manifest.toml")
-    Pkg.activate(".")
-end
+Pkg.activate("/u/sauves/leonard_leucegene_factorized_embeddings/")
 
 # imports  
 using CSV

@@ -33,6 +33,33 @@ function dump_accuracy(model_params_list, accuracy_list, outdir)
     CSV.write("$(outdir)/model_accuracies.txt", acc_df)
 end 
 
+############################
+####### TSNE    ############
+############################
+function run_TSNE_dump_h5(tpm_data; ndim = 3, red_dim = 50, max_iter = 1000, perplexity = 30.0)
+        tsne = tsne(tpm_data, ndim, red_dim, max_iter, perplexity;verbose=true,progress=true)
+        f = h5open("RES/TSNE/TCGA_tsne_$(ndim)d.h5", "w")
+        f["tsne"] = tsne
+        f["rows"] = case_ids
+        f["cols"] = collect(1:ndim)
+        f["params"] = "tsne(X::Union{AbstractMatrix, AbstractVector}, ndims::Integer=$ndim, reduce_dims::Integer=$red_dim,
+        max_iter::Integer=$max_iter, perplexity::Number=$perplexity)"
+        close(f)
+    end
+
+function load_tsnes(;prefix="TCGA")
+        tsne_list = []
+        basepath = "RES/TSNE"
+        for tsne_f in readdir(basepath)
+                if startswith(tsne_f, prefix)
+                f = h5open("$basepath/$tsne_f", "r")
+                tsne_data = f["tsne"][:,:]'
+                close(f)
+                push!(tsne_list, tsne_data)
+                end
+        end 
+        return tsne_list 
+end 
 ##############################
 ###### Distance evaluations ##
 ##############################

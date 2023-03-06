@@ -25,16 +25,7 @@ path200d = "./RES/EMBEDDINGS/embeddings_2023-03-01T15:00:23.072/FE_81c8baafa88f1
 # PCA results 
 
 # TSNE results
-function run_TSNE_dump_h5(tpm_data; ndim = 3, red_dim = 50, max_iter = 1000, perplexity = 30.0)
-    TCGA_tsne = tsne(tpm_data, ndim, red_dim, max_iter, perplexity;verbose=true,progress=true)
-    f = h5open("RES/TSNE/TCGA_tsne_$(ndim)d.h5", "w")
-    f["tsne"] = TCGA_tsne
-    f["rows"] = case_ids
-    f["cols"] = collect(1:ndim)
-    f["params"] = "tsne(X::Union{AbstractMatrix, AbstractVector}, ndims::Integer=$ndim, reduce_dims::Integer=$red_dim,
-    max_iter::Integer=$max_iter, perplexity::Number=$perplexity)"
-    close(f)
-end
+
 run_TSNE_dump_h5(tpm_data;ndim = 1) 
 
 model_D = BSON.load("$path/model_training_$(zpad(200_000))")
@@ -59,74 +50,21 @@ embed_200d = BSON.load("$path200d/model_training_$(zpad(60_000))")["model"].embe
 
 
 
-embedings = [embed_1d, embed_2d, embed_3d, embed_5d, embed_10d, embed_25d, embed_50d, embed_75d, embed_100d, embed_200d]
-function investigate_accuracy_by_embedding_length(embeddings,embed_name, labels; repn = 10)
-    accuracies = []
-    lengths = []
-    for embed in embeddings
-        l = size(embed)[1]
-        DATA = Matrix(embed')
-        targets = label_binarizer(labels)
-        folds = split_train_test(DATA, targets)
-        for repl in 1:repn
-            accs = []
-            for (foldn, fold) in enumerate(folds)
-                train_x = gpu(fold["train_x"]')
-                train_y = gpu(fold["train_y"]')
-                test_x = gpu(fold["test_x"]')
-                test_y = gpu(fold["test_y"]')
+tcga_embeddings = [embed_1d, embed_2d, embed_3d, embed_5d, embed_10d, embed_25d, embed_50d, embed_75d, embed_100d, embed_200d]
 
-                model = train_logreg(train_x, train_y, nepochs = 1000)
-                println("Length $l Rep $repl Fold $foldn Train : ", accuracy(model, train_x, train_y))
-                println("Length $l Rep $repl Fold $foldn Test  : ", accuracy(model, test_x, test_y))
-                push!(accs, accuracy(model, test_x, test_y))
-            end
-            push!(lengths, l)
-            push!(accuracies, mean(accs))
-        end 
-    end
-    accs_df = DataFrame(Dict("accs"=>accuracies,"length"=>lengths))
-    CSV.write("RES/SIGNATURES/TCGA_$(embed_name)_tst_accs.csv", accs_df)
-end 
-function load_tsnes()
-    tsne_list = []
-    basepath = "RES/TSNE"
-    for tsne_f in readdir(basepath)
-        f = h5open("$basepath/$tsne_f", "r")
-        tsne_data = f["tsne"][:,:]'
-        close(f)
-        push!(tsne_list, tsne_data)
-    end 
-    return tsne_list 
-end 
-tsnes = load_tsnes()
+
+startswith(readdir("RES/TSNE/")[1], "TCGA_BRCA_pca_init_tsne_")
+tsnes = load_tsnes(prefix = "TCGA_BRCA_pca_init_tsne_")
+
 tsnes[4]
 embed_df = DataFrame(Dict("embed_1"=>tsnes[4][:,1], "embed_2"=>tsnes[4][:,2], "labels"=>labels))
 p= AlgebraOfGraphics.data(embed_df) * mapping(:embed_1, :embed_2, color=:labels, marker=:labels) 
 draw(p)
-investigate_accuracy_by_embedding_length(embedings, "FE", labels)
-investigate_accuracy_by_embedding_length(tsnes, "TSNE", labels)
+investigate_accuracy_by_embedding_length(tcga_embeddings, "FE", labels; prefix= "TCGA")
+investigate_accuracy_by_embedding_length(tsnes, "TSNE", labels; prefix = "TCGA_BRCA_pam50")
 
 # train DNN 
 using ProgressBars
-function train_DNN(X, Y; nepochs = 1000)
-    layout =  Chain(Dense(size(X)[1], 100, relu),  
-    Dense(100, size(Y)[1], identity))
-    model = gpu(layout)
-    opt = Flux.ADAM(1e-2)
-    for e in ProgressBar(1:nepochs)
-        ps = Flux.params(model)
-        l = Flux.logitcrossentropy(model(X), Y)
-        # l = Flux.Losses.mse(model(X), target)
-        gs = gradient(ps) do
-            #Flux.Losses.mse(model(X), target)
-            Flux.logitcrossentropy(model(X), Y)
-        end
-        Flux.update!(opt, ps, gs)
-        # println(accuracy(model, X, Y))
-    end
-    return model 
-end 
 
 DATA = Matrix(embed_100d')
 targets = label_binarizer(labels)
@@ -140,3 +78,35 @@ test_y = gpu(fold["test_y"]');
 model = train_DNN(train_x, train_y, nepochs = 2000)
 accuracy(model, train_x, train_y)
 accuracy(model, test_x, test_y)
+
+### Rdm sign DNN
+lengths = [1,2,3,5,10,15,20,25,30,40,50,75,100,200,500]
+repn = 10
+DATA = tpm_data
+cols = gene_names
+length_accs = Array{Float64, 2}(undef, (length(lengths) * repn, 2))
+targets = label_binarizer(labels)
+for (row, l) in enumerate(lengths)     
+    for repl in 1:repn
+        #loss(X, Y, model) = Flux.loss.MSE(model(X), Y)
+        sign = rand(1: length(cols), l)
+        X = DATA[:, sign]
+        folds = split_train_test(X, targets)
+        accs = []
+        for (foldn, fold) in enumerate(folds)
+            train_x = gpu(fold["train_x"]')
+            train_y = gpu(fold["train_y"]')
+            test_x = gpu(fold["test_x"]')
+            test_y = gpu(fold["test_y"]')
+
+            model = train_DNN(train_x, train_y, nepochs = 1000)
+            println("Length $l Rep $repl Fold $foldn Train : ", accuracy(model, train_x, train_y))
+            println("Length $l Rep $repl Fold $foldn Test  : ", accuracy(model, test_x, test_y))
+            push!(accs, accuracy(model, test_x, test_y))
+        end
+        length_accs[(row - 1) * repn + repl,:] =  Array{Float64}([l, mean(accs)])
+    end 
+    rdm_sign_df = DataFrame(Dict([("lengths", length_accs[:,1]), ("tst_acc", length_accs[:,2])]))
+
+    CSV.write("RES/SIGNATURES/BRCA_DNN_pam_50_rdm_tst_accs.csv", rdm_sign_df)
+end
