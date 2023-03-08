@@ -1,7 +1,7 @@
 using CSV
 using DataFrames
 using MultivariateStats
-
+using TSne
 ###############################################
 ####### Pearson Correlation coeff on GPU ######
 ###############################################
@@ -36,10 +36,10 @@ end
 ############################
 ####### TSNE    ############
 ############################
-function run_TSNE_dump_h5(tpm_data; ndim = 3, red_dim = 50, max_iter = 1000, perplexity = 30.0)
-        tsne = tsne(tpm_data, ndim, red_dim, max_iter, perplexity;verbose=true,progress=true)
-        f = h5open("RES/TSNE/TCGA_tsne_$(ndim)d.h5", "w")
-        f["tsne"] = tsne
+function run_TSNE_dump_h5(tpm_data; ndim = 3, red_dim = 50, max_iter = 1000, perplexity = 30.0, prefix = "TCGA")
+        tsne_data = tsne(tpm_data, ndim, red_dim, max_iter, perplexity;verbose=true,progress=true)
+        f = h5open("RES/TSNE/$(prefix)_tsne_$(ndim)d.h5", "w")
+        f["tsne"] = tsne_data
         f["rows"] = case_ids
         f["cols"] = collect(1:ndim)
         f["params"] = "tsne(X::Union{AbstractMatrix, AbstractVector}, ndims::Integer=$ndim, reduce_dims::Integer=$red_dim,

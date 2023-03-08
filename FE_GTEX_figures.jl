@@ -18,7 +18,7 @@ X = gtexd.data
 @time X_ctr = X .- mean(X, dims = 1)
 @time X_cov =  X_ctr' * X_ctr
 using KrylovKit
-@time vals, vecs, info = eigsolve(X_cov)
+@time vals, vecs, info = eigsolve(X_cov, krylovdim=5)
 proj = Array{Float32, 2}(undef, (size(vecs)[1], n))
 [proj[i,:] = vecs[i] for i in 1:size(vecs)[1]]
 X_proj = proj * X_ctr'

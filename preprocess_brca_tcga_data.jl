@@ -3,9 +3,9 @@ include("init.jl")
 include("tcga_data_processing.jl")
 BRCA_CLIN = CSV.read("Data/DATA/GDC_processed/TCGA_BRCA_clinicial_raw.csv", DataFrame, header = 2)
 rename!(BRCA_CLIN, ["Complete TCGA ID"=>"case_submitter_id"])
-J, TCGA_CLIN_FULL, TCGA_CLIN, baseurl, basepath = get_GDC_CLIN_data_init_paths()
+J, TCGA_CLIN_FULL, TCGA_CLIN, baseurl, basepath = get_GDC_CLIN_data_init_paths();
 # load in expression data and project id data 
-tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_TPM_hv_subset.h5")
+tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_TPM_hv_subset.h5");
 names(BRCA_CLIN)
 names(TCGA_CLIN)
 BRCA_CLIN_merged = innerjoin(TCGA_CLIN, BRCA_CLIN, on = :case_submitter_id)

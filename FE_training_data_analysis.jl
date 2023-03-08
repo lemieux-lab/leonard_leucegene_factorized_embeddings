@@ -48,8 +48,17 @@ embed_75d = BSON.load("$path75d/model_training_$(zpad(220_000))")["model"].embed
 embed_100d = BSON.load("$path100d/model_training_$(zpad(35_000))")["model"].embed_1.weight
 embed_200d = BSON.load("$path200d/model_training_$(zpad(60_000))")["model"].embed_1.weight
 
+## PCA 
+using MultivariateStats
+M = fit(PCA, tpm_data', maxoutdim = 2000);
+X_PCA = Matrix(predict(M, tpm_data')')
+targets = label_binarizer(labels)
 
+lengths = [1,2,3,5,10,15,20,25,30,40,50,75,100,200,300, 500, 1000,2000]
+PCA_prediction_by_nbPCs_DNN(X_PCA, targets;lengths=lengths, prefix = "TCGA")
+PCA_prediction_by_nbPCs_logreg(X_PCA, targets;lengths=lengths, prefix = "TCGA")
 
+## TSNES
 tcga_embeddings = [embed_1d, embed_2d, embed_3d, embed_5d, embed_10d, embed_25d, embed_50d, embed_75d, embed_100d, embed_200d]
 
 

@@ -4,6 +4,7 @@ include("gene_signatures.jl")
 include("embeddings.jl")
 # load in expression data and project id data 
 tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_BRCA_TPM_hv_subset_PAM_50.h5")
+
 ## FE on BRCA data
 FEpath1d = "RES/EMBEDDINGS/embeddings_2023-03-06T14:26:15.605/FE_946ce7ced263b76223ef0"
 FEpath2d = "RES/EMBEDDINGS/embeddings_2023-03-06T12:39:33.263/FE_d7b980bd9885c178bb9f5"
@@ -41,6 +42,21 @@ embed300d = BSON.load("$FEpath300d/model_training_$(zpad(200_000))")["model"].em
 brca_embeddings = [embed1d,embed2d,embed3d,embed5d,embed10d,embed15d,embed20d,embed25d,embed30d,embed40d,embed50d,embed75d, embed100d,embed200d,embed300d] 
 include("gene_signatures.jl")
 investigate_accuracy_by_embedding_length_logreg(brca_embeddings, "FE", labels;prefix = "TCGA_BRCA_PAM_50" )
+### 2D visualizations
+RPPA_Clusters_dict = Dict([(id,cl) for (id, cl) in zip(BRCA_CLIN_merged.case_id, BRCA_CLIN_merged[:,"RPPA Clusters"])])
+sum([in(cid, keys(RPPA_Clusters_dict)) for cid in case_ids])
+RPPA_Clusters = [RPPA_Clusters_dict[cid] for cid in case_ids]
+embed_df = DataFrame(Dict("embed_1"=>embed2d[1,:], "embed_2"=>embed2d[2,:], "labels"=>RPPA_Clusters))
+p= AlgebraOfGraphics.data(embed_df) * mapping(:embed_1, :embed_2, color=:labels, marker=:labels) * visual(aspect = 1.0)
+fig = draw(p, axis = (title="2D Fatorized Embedding (patient) from TCGA Breast Cancer gene expression data $(size(tpm_data)) by RPPA Clusters subtype classification ", width = 1200, height = 1000))
+CairoMakie.save("RES/BRCA/FE2D_RPPA_clusters.svg", fig)
+
+tsnes = load_tsnes(prefix = "TCGA_BRCA_pca_init")
+tsne2d_df = DataFrame(Dict("tsne_1"=>tsnes[8][1,:], "tsne_2"=>tsnes[8][2,:], "labels"=>RPPA_Clusters)) 
+p= AlgebraOfGraphics.data(tsne2d_df) * mapping(:tsne_1, :tsne_2, color=:labels, marker=:labels) 
+fig = draw(p, axis = (title="2D T-SNE (p=30.0) from TCGA Breast Cancer gene expression data $(size(tpm_data)) \nwith PCA init by PAM 50 subtype classification", width = 800, height = 1000))
+CairoMakie.save("RES/BRCA/TNSE_2D_PAM_50_subtype.pdf", fig)
+
 
 ### Rdm sign DNN
 lengths = [1,2,3,5,10,15,20,25,30,40,50,75,100,200,300,500,1000]
