@@ -53,7 +53,8 @@ write_h5(TCGA, projects, "Data/DATA/GDC_processed/TCGA_TPM_hv_subset.h5")
 tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_TPM_hv_subset.h5")
 
 
-abbrv = CSV.read("Data/GDC_processed/TCGA_abbrev.txt", DataFrame, delim = "\t")
+abbrv = CSV.read("Data/DATA/GDC_processed/TCGA_abbrev.txt", DataFrame, delim = ",")
+
 abbrvDict = Dict([("TCGA-$(String(strip(abbrv[i,1])))", abbrv[i,2]) for i in 1:size(abbrv)[1]])
 TSNE_df = DataFrame(Dict("dim_1" => TCGA_tsne[:,1], "dim_2" => TCGA_tsne[:,2], "project" => [abbrvDict[p] for p in  projects]))
 q = AlgebraOfGraphics.data(TSNE_df) * mapping(:dim_1, :dim_2, color = :project, marker = :project) * visual(markersize = 15,strokewidth = 0.5, strokecolor =:black)

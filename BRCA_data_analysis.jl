@@ -5,6 +5,34 @@ include("embeddings.jl")
 # load in expression data and project id data 
 tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_BRCA_TPM_hv_subset_PAM_50.h5")
 
+PAM50_raw = readlines("PAM50.csv")
+PAM50_genes = []
+ALT_names = []
+for elem in PAM50_raw
+    if elem != "" 
+    println(elem)
+    if occursin("(", elem) 
+        alt = split(elem, "(")[2][1:end-1]
+        elem = split(elem, "(")[1]
+    elseif occursin("/", elem) 
+        alt = split(elem, "/")[2]
+        elem = split(elem, "/")[1]
+    else 
+        alt = elem 
+    end 
+    push!(ALT_names, alt)
+    push!(PAM50_genes, elem)
+    end
+end 
+PAM50_df = DataFrame(:gene_name=>PAM50_genes, :alt_name=>ALT_names)
+CSV.write("Data/DATA/GDC_processed/PAM50_genes_processed.csv", PAM50_df)
+# isolate PAM50 
+
+pam50 = findall([in(gene, PAM50_df.gene_name) for gene in gene_names])
+pam50_alt = findall([in(gene, PAM50_df.alt_name) for gene in gene_names])
+pam50 = union(pam50, pam50_alt)
+
+
 ## FE on BRCA data
 FEpath1d = "RES/EMBEDDINGS/embeddings_2023-03-06T14:26:15.605/FE_946ce7ced263b76223ef0"
 FEpath2d = "RES/EMBEDDINGS/embeddings_2023-03-06T12:39:33.263/FE_d7b980bd9885c178bb9f5"
@@ -89,3 +117,31 @@ for (row, l) in enumerate(lengths)
 
     CSV.write("RES/SIGNATURES/BRCA_DNN_pam_50_rdm_tst_accs.csv", rdm_sign_df)
 end
+
+# pam 50 benchmark
+DATA = tpm_data
+targets = label_binarizer(labels)
+results = []
+repn = 10
+for repl in 1:repn
+    #loss(X, Y, model) = Flux.loss.MSE(model(X), Y)
+    X = DATA[:, pam50]
+    folds = split_train_test(X, targets)
+    accs = []
+    for (foldn, fold) in enumerate(folds)
+        train_x = gpu(fold["train_x"]')
+        train_y = gpu(fold["train_y"]')
+        test_x = gpu(fold["test_x"]')
+        test_y = gpu(fold["test_y"]')
+
+        model = train_logreg(train_x, train_y, nepochs = 1000)
+        println("Length $(length(pam50)) Rep $repl Fold $foldn Train : ", accuracy(model, train_x, train_y))
+        println("Length $(length(pam50)) Rep $repl Fold $foldn Test  : ", accuracy(model, test_x, test_y))
+        push!(accs, accuracy(model, test_x, test_y))
+    end
+    push!(results, mean(accs))
+end
+println(results) 
+#rdm_sign_df = DataFrame(Dict([("lengths", length_accs[:,1]), ("tst_acc", length_accs[:,2])]))
+
+#CSV.write("RES/SIGNATURES/BRCA_DNN_pam_50_rdm_tst_accs.csv", rdm_sign_df)

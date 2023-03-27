@@ -10,6 +10,7 @@ using CUDA
 device!()
 # load in expression data and project id data 
 tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_TPM_hv_subset.h5")
+
 # FE patient embeddings results 
 path1d = "./RES/EMBEDDINGS/embeddings_2023-03-01T12:49:16.360/FE_ed506f3ecf67b47966c53"
 path2d = "./RES/EMBEDDINGS/embeddings_2023-02-28T13:59:02.080/FE_af36c9d758d056128a653"
@@ -23,17 +24,11 @@ path100d = "./RES/EMBEDDINGS/embeddings_2023-03-01T14:59:44.650/FE_110fccaf46596
 path200d = "./RES/EMBEDDINGS/embeddings_2023-03-01T15:00:23.072/FE_81c8baafa88f12c9f9f04"
 
 # PCA results 
-
+max(tpm_data...)
+min(tpm_data...)
 # TSNE results
 
 run_TSNE_dump_h5(tpm_data;ndim = 1) 
-
-model_D = BSON.load("$path/model_training_$(zpad(200_000))")
-embed = model_D["model"].embed_1.weight
-embed_df = DataFrame(Dict("embed_1"=>embed[1,:], "embed_2"=>embed[2,:], "labels"=>labels))
-
-p= AlgebraOfGraphics.data(embed_df) * mapping(:embed_1, :embed_2, color=:labels, marker=:labels) 
-draw(p)
 
 # show project id detection accuracy by nb of dimensions with logistic regression 
 include("gene_signatures.jl")
@@ -47,6 +42,12 @@ embed_50d = BSON.load("$path50d/model_training_$(zpad(200_000))")["model"].embed
 embed_75d = BSON.load("$path75d/model_training_$(zpad(220_000))")["model"].embed_1.weight
 embed_100d = BSON.load("$path100d/model_training_$(zpad(35_000))")["model"].embed_1.weight
 embed_200d = BSON.load("$path200d/model_training_$(zpad(60_000))")["model"].embed_1.weight
+
+# plot FE 2D 
+embed_df = DataFrame(Dict("embed_1"=>embed_2d[1,:], "embed_2"=>embed_2d[2,:], "labels"=>labels))
+p= AlgebraOfGraphics.data(embed_df) * mapping(:embed_1, :embed_2, color=:labels, marker=:labels) 
+draw(p)
+
 
 ## PCA 
 using MultivariateStats

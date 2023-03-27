@@ -1,18 +1,22 @@
+using Pkg
+Pkg.activate(".")
 using CairoMakie
 using AlgebraOfGraphics
 using DataFrames
-using Flux
-set_aog_theme!()
-
-# df = DataFrame(patient_embed_mat[:,:], :auto)
-# p = data(df) * mapping(:x1) * mapping(:x2)
-# draw(p)
-
-# include("data_preprocessing.jl")
-# X_, Y_ = DataPreprocessing.prep_data(ge_cds_all)
-y = cpu(model.net(X))
-
-df = DataFrame(y = y, Y = cpu(Y))
-p = data(df) * mapping(:y, :Y) * AlgebraOfGraphics.density(npoints=100)
-draw(p * visual(Heatmap), ; axis=(width=1024, height=1024))
-
+using ProgressBars
+#### CairoMakie (without algebra of graphics)
+#### Data
+infile = readlines("tmp.out") 
+metrics = Array{Float32, 2}(undef, (length(infile), 4))
+for line in ProgressBar(infile)
+    lsplit  = split(line, ",")
+    itn = parse( Int, lsplit[1])
+    metrics[itn, :] = [parse(Base.Float32, split(x, ":")[2][1:end-1]) for x in  lsplit[2:end]]
+end 
+#### Scatterplot
+test_range = collect(1:1000)
+f = Figure()
+ax = Axis(f[1,1])
+lines!(ax, collect(1:size(metrics)[1])[test_range] ,metrics[test_range,1])
+save("cairo_makie_test.svg", f)
+save("cairo_makie_test.png", f)

@@ -14,6 +14,8 @@ using CairoMakie
 using Random
 using Dates
 using AlgebraOfGraphics
+using JuBox
+using CUDA
 
 function set_dirs()
     outpath  = "./RES/EMBEDDINGS" # our output directory

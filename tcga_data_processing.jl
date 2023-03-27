@@ -83,8 +83,11 @@ function merge_GDC_data(basepath, outfile)
     return output_data 
 end 
 
-
-
+function tcga_abbrv()
+    abbrv = CSV.read("Data/DATA/GDC_processed/TCGA_abbrev.txt", DataFrame, delim = ",")
+    abbrvDict = Dict([("TCGA-$(String(strip(abbrv[i,1])))", abbrv[i,2]) for i in 1:size(abbrv)[1]])
+    return abbrvDict
+end
 function preprocess_data(GDCd, CLIN, outfilename; var_frac = 0.75)
     cases = GDCd.rows
     ngenes = length(GDCd.cols)

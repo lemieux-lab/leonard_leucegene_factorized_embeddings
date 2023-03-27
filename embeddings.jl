@@ -43,6 +43,24 @@ struct FE_model
     outpl::Flux.Dense
 end
 
+struct FE_model_dual
+    FE_model::FE_model 
+    classifier::Flux.Chain    
+end 
+
+function FE_model_dual(param_dict)
+    fe_mod = gpu(FE_model(param_dict["nsamples"], param_dict["ngenes"], param_dict["params"]))
+    a = 10
+    classf = gpu(Flux.Chain(fe_mod.embed_1, Flux.Dense(param_dict["params"].emb_size_1, a, relu), Flux.Dense(a, param_dict["nclasses"], identity)))
+    return FE_model_dual(fe_mod, classf)
+end 
+
+function FE_model_dual_lin_clf(param_dict)
+    fe_mod = gpu(FE_model(param_dict["nsamples"], param_dict["ngenes"], param_dict["params"]))
+    classf = gpu(Flux.Chain(fe_mod.embed_1, Flux.Dense(param_dict["params"].emb_size_1, param_dict["nclasses"], identity)))
+    return FE_model_dual(fe_mod, classf)
+end 
+
 struct FE_model_3_factors
     net::Flux.Chain
     embed_1::Flux.Embedding
