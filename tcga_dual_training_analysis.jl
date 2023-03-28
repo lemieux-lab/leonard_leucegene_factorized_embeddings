@@ -24,3 +24,24 @@ end
 step = 15400
 embed = CSV.read("$basepath/patient_embed_$(zpad(step))", DataFrame)
 embed[:,"cancer_type"] = [abbrv[l] for l in labels]
+targets = label_binarizer(labels)
+results = []
+repn = 10
+for repl in 1:repn
+    #loss(X, Y, model) = Flux.loss.MSE(model(X), Y)
+    X = DATA[:, pam50]
+    folds = split_train_test(X, targets)
+    accs = []
+    for (foldn, fold) in enumerate(folds)
+        train_x = gpu(fold["train_x"]')
+        train_y = gpu(fold["train_y"]')
+        test_x = gpu(fold["test_x"]')
+        test_y = gpu(fold["test_y"]')
+
+        model = train_logreg(train_x, train_y, nepochs = 1000)
+        println("Length $(length(pam50)) Rep $repl Fold $foldn Train : ", accuracy(model, train_x, train_y))
+        println("Length $(length(pam50)) Rep $repl Fold $foldn Test  : ", accuracy(model, test_x, test_y))
+        push!(accs, accuracy(model, test_x, test_y))
+    end
+    push!(results, mean(accs))
+end
