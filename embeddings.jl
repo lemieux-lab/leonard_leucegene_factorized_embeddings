@@ -70,7 +70,9 @@ function FE_model_dual(param_dict)
     classf = gpu(Flux.Chain(fe_mod.embed_1, 
         Flux.Dense(param_dict["emb_size_1"], param_dict["clf_hl1_size"], relu), 
         Flux.Dense(param_dict["clf_hl1_size"],param_dict["clf_hl2_size"], relu), 
-        Flux.Dense(param_dict["clf_hl2_size"], param_dict["nclasses"], identity)))
+        Flux.Dense(param_dict["clf_hl2_size"],param_dict["clf_hl3_size"], relu),
+        Flux.Dense(param_dict["clf_hl3_size"],param_dict["clf_hl4_size"], relu),
+        Flux.Dense(param_dict["clf_hl4_size"], param_dict["nclasses"], identity)))
     return FE_model_dual(fe_mod, classf)
 end 
 
@@ -148,7 +150,34 @@ function cp(model::FE_model)
     return FE_model(net, emb_layer_1, emb_layer_2, hl1, hl2, outpl)
 end
 
+function to_cpu(model::FE_model_dual)
+    return FE_model_dual(to_cpu(model.FE_model), cpu(model.classifier))
+end 
 
+function to_cpu(model::FE_model)
+    cpu_model = FE_model(cpu(model.net),
+    cpu(model.embed_1),
+    cpu(model.embed_2),
+    cpu(model.hl1),
+    cpu(model.hl2),    
+    cpu(model.outpl))
+    return cpu_model
+end
+
+
+
+# metric functions 
+function accuracy(model::FE_model_dual, C)
+    X = model.FE_model.embed_1.weight
+    n = size(X)[2]
+    out = model.classifier[6](model.classifier[5](model.classifier[4](model.classifier[3](model.classifier[2](X)))))
+    preds = out .== maximum(out, dims = 1)
+    acc = C' .& preds
+    pct = sum(acc) / n
+    return pct
+end 
+
+# l2 penalty functions
 function l2_penalty(model::FE_model)
     l2 = sum(abs2, model.embed_1.weight) + sum(abs2, model.embed_2.weight) + sum(abs2, model.hl1.weight) + sum(abs2, model.hl2.weight) + sum(abs2, model.outpl.weight)
     return l2
@@ -158,8 +187,11 @@ function l2_penalty(model::FE_model_3_factors)
     return l2
 end
 
+# loss functions 
 loss(x, y, model, wd) = Flux.Losses.mse(model.net(x), y) + l2_penalty(model) * wd
 log_loss(x, y, model, wd) = log10(Flux.Losses.mse(model.net(x), y) + l2_penalty(model) * wd)
+loss_FE_f(model, X, Y, wd) = Flux.Losses.mse(model.FE_model.net(X), Y) + wd * l2_penalty(model.FE_model)
+loss_classif_f(model, X, C,params) = params["loss"](model.classifier(X)', C) + params["wd"] * sum(abs2, model.FE_model.embed_1.weight)
 
 function prep_FE(data::Matrix,patients::Array,genes::Array,tissues::Array, device=gpu)
     n = length(patients)
