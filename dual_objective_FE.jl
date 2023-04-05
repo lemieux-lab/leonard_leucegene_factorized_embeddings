@@ -6,7 +6,7 @@ include("gene_signatures.jl")
 device!()
 
 # outdir 
-outpath, outdir, model_params_list =  set_dirs()
+outpath, session_id, model_params_list =  set_dirs()
 # load in expression data and project id data 
 tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_TPM_hv_subset.h5")
 FE_data = DataFE("TCGA all", tpm_data, case_ids, gene_names)
@@ -14,19 +14,6 @@ projects_num = [findall(unique(labels) .== X)[1] for X in labels]
 
 X, Y = prep_FE(FE_data.data, FE_data.factor_1, FE_data.factor_2, projects_num);
 
-
-
-## init model / load model 
-# fe_params = Params(FE_data, case_ids, outdir; 
-#     nepochs = -1,
-#     tr = 1e-2,
-#     wd = 1e-5,
-#     emb_size_1 = 100, # classifier reaches 100% accuracy at patient embed size = 100 , 0.93 reconstruction accuracy
-#     emb_size_2 = 75, 
-#     emb_size_3 = 0,
-#     hl1=50, 
-#     hl2=50, 
-#     clip=false)
 modelid = "FE_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
 model_outdir = "$(outdir)/$(modelid)"
 mkdir(model_outdir);
@@ -37,14 +24,19 @@ fe_clf_params = Dict(
     "nsamples" => length(case_ids),
     "ngenes" => length(gene_names),
     "nclasses" => length(unique(labels)),
-    "emb_size_1" => 100,
+    "emb_size_1" => 2,
     "emb_size_2" => 75,
     "fe_hl1_size" => 50,
     "fe_hl2_size" => 50,
     "clf_hl1_size" => 50,
     "clf_hl2_size" => 50,
-    "model_outdir" => model_outdir)
-
+    "model_id" => modelid,
+    "model_outdir" => model_outdir, 
+    "session_id"=>session_id, 
+    "outpath"=>outpath)
+### dump dict  
+bson("$(fe_clf_params["outpath"]).bson", fe_clf_params)
+###
 
 
 # pre-run.jl (bson)
