@@ -11,11 +11,9 @@ pam50 = findall([in(gene, pam50_genes) for gene in gene_names])
 # split RRM2 
 ACTB_id = findall(gene_names .== "ACTB")
 ACTB = tpm_data[:,ACTB_id]
-pam50= setdiff(pam50,ACTB_id) 
+pam50_xACTB= setdiff(pam50,ACTB_id) 
 # heat map of pam50 expression in TCGA breast cancer 
-[tpm_data[:,pam50]]
-#pam50_tcga_df = DataFrame(tpm_data[:,pam50],:auto)
-mat = tpm_data[sortperm(labels),pam50]
+mat = tpm_data[sortperm(labels),pam50_xACTB]
 # sort by kmeans clustering 
 kn=4
 gene_centroids = kmeans(mat,kn)
@@ -87,17 +85,17 @@ fig
 CairoMakie.save("RES/BRCA/hm_tcga_brca_subtypes_by_pam_genes.png",fig)
 
 # scrambled heatmap
-fig3= Figure(fontsize = 12)
+fig3= Figure(resolution = size_pt, fontsize = 14)
 fig3[1,1]=Axis(fig3,
 yticks = (collect(1:length(pam50)), gene_names[pam50]), 
 xlabel = "patient ID",
 ylabel = "PAM50 gene ",
 title = "Heatmap Pam 50 expression in TCGA Breast cancer data. (no processing)")
-hm = heatmap!(fig3[1,1],tpm_data[:,pam50])
-Colorbar(fig3[:,2], hm)
-Colorbar(fig[3,3], hm)
+hm_scrambled = heatmap!(fig3[1,1],tpm_data[:,pam50])
+Colorbar(fig3[:,2], hm_scrambled)
+Colorbar(fig[3,3], hm_scrambled)
 fig3
-CairoMakie.save("RES/BRCA/hm_tcga_brca_subtypes_by_pam_genes_scrambled.png",fig)
+CairoMakie.save("RES/BRCA/hm_tcga_brca_subtypes_by_pam_genes_scrambled.png",fig3)
 
 # clustering 
 using Clustering
