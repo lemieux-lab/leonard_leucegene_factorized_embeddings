@@ -2,8 +2,106 @@ include("init.jl")
 include("tcga_data_processing.jl")
 include("gene_signatures.jl")
 include("embeddings.jl")
+using StatsBase
 # load in expression data and project id data 
 tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_BRCA_TPM_hv_subset_PAM_50.h5")
+
+pam50_genes = [split(gene_name,"_")[1] for gene_name in readlines("Data/DATA/GDC_processed/PAM_50_2009.csv")]
+pam50 = findall([in(gene, pam50_genes) for gene in gene_names])
+# split RRM2 
+ACTB_id = findall(gene_names .== "ACTB")
+ACTB = tpm_data[:,ACTB_id]
+pam50= setdiff(pam50,ACTB_id) 
+# heat map of pam50 expression in TCGA breast cancer 
+[tpm_data[:,pam50]]
+#pam50_tcga_df = DataFrame(tpm_data[:,pam50],:auto)
+mat = tpm_data[sortperm(labels),pam50]
+# sort by kmeans clustering 
+kn=4
+gene_centroids = kmeans(mat,kn)
+patient_centroids = [Int(floor(mean(findall(sort(labels) .== l)))) for l in unique(sort(labels))]
+num_labels = [Dict([(k,v) for (v,k) in enumerate(unique(sort(labels)))])[lab] for lab in sort(labels)]
+# sort by absolute expression
+gene_sort = sortperm(assignments(gene_centroids))
+mat = mat[:,gene_sort]
+
+size_inches = (15, 12)
+size_pt = 72 .* size_inches
+fig = Figure(resolution = size_pt, fontsize = 14)
+
+hm_yticks = (collect(1:size(mat)[2]), gene_names[pam50[gene_sort]])
+#gene_names[pam50][reverse(sortperm(assignments(gene_centroids)))])
+fig[2,2] = Axis(fig, width = 850, yticks = hm_yticks, 
+    )
+fig[1,2] = Axis(fig, title ="Heatmap Pam 50 expression in TCGA Breast cancer data.", 
+    xticks = (patient_centroids, unique(sort(labels))),
+    height = 25,
+    backgroundcolor = :transparent,
+        leftspinevisible = false,
+        rightspinevisible = false,
+        bottomspinevisible = false,
+        topspinevisible = false,
+        #xticklabelsvisible = false, 
+        yticklabelsvisible = false,
+        xgridcolor = :transparent,
+        ygridcolor = :transparent,
+        #xminorticksvisible = false,
+        yminorticksvisible = false,
+        #xticksvisible = false,
+        yticksvisible = false,
+        xautolimitmargin = (0.0,0.0),
+        yautolimitmargin = (0.0,0.0))
+bp = barplot!(fig[1,2], [1 for i in 1:5],[StatsBase.countmap(labels)[l] for l in sort(unique(labels))], 
+        stack = collect(1:5), color = collect(1:5), direction = :x)
+hm_main = heatmap!(fig[2,2], mat)
+
+fig        
+fig[2,1] = Axis(fig, #title ="Heatmap Pam 50 expression in TCGA Breast cancer data.", 
+        #yticks = (gene_centroids, unique(sort(labels))),
+        ylabel = "cluster assignment by k-means", 
+        backgroundcolor = :transparent,
+            leftspinevisible = false,
+            rightspinevisible = false,
+            bottomspinevisible = false,
+            topspinevisible = false,
+            xticklabelsvisible = false, 
+            yticklabelsvisible = false,
+            xgridcolor = :transparent,
+            ygridcolor = :transparent,
+            xminorticksvisible = false,
+            yminorticksvisible = false,
+            xticksvisible = false,
+            yticksvisible = false,
+            xautolimitmargin = (0.0,0.0),
+            yautolimitmargin = (0.0,0.0))
+counts(gene_centroids)
+bp = barplot!(fig[2,1], [1 for i in 1:kn],counts(gene_centroids), 
+stack = collect(1:kn), color = collect(1:kn), direction = :y)
+fig
+fig[3,2] = Axis(fig, yticks = ([1],["ACTB"]), height = 15)
+hm_ACTB = heatmap!(fig[3,2], ACTB)
+fig
+Colorbar(fig[2,3], hm_main)
+Colorbar(fig[3,3], hm_ACTB)
+fig
+CairoMakie.save("RES/BRCA/hm_tcga_brca_subtypes_by_pam_genes.png",fig)
+
+# scrambled heatmap
+fig3= Figure(fontsize = 12)
+fig3[1,1]=Axis(fig3,
+yticks = (collect(1:length(pam50)), gene_names[pam50]), 
+xlabel = "patient ID",
+ylabel = "PAM50 gene ",
+title = "Heatmap Pam 50 expression in TCGA Breast cancer data. (no processing)")
+hm = heatmap!(fig3[1,1],tpm_data[:,pam50])
+Colorbar(fig3[:,2], hm)
+Colorbar(fig[3,3], hm)
+fig3
+CairoMakie.save("RES/BRCA/hm_tcga_brca_subtypes_by_pam_genes_scrambled.png",fig)
+
+# clustering 
+using Clustering
+mat
 
 PAM50_raw = readlines("PAM50.csv")
 PAM50_genes = []
