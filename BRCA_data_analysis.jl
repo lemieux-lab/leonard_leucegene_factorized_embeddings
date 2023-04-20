@@ -9,8 +9,8 @@ tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed
 pam50_genes = [split(gene_name,"_")[1] for gene_name in readlines("Data/DATA/GDC_processed/PAM_50_2009.csv")]
 pam50 = findall([in(gene, pam50_genes) for gene in gene_names])
 # split RRM2 
-ACTB_id = findall(gene_names .== "ACTB")
-ACTB = tpm_data[:,ACTB_id]
+#ACTB_id = findall(gene_names .== "ACTB")
+#ACTB = tpm_data[:,ACTB_id]
 pam50_xACTB= setdiff(pam50,ACTB_id) 
 # heat map of pam50 expression in TCGA breast cancer 
 mat = tpm_data[sortperm(labels),pam50_xACTB]
@@ -27,7 +27,7 @@ size_inches = (15, 12)
 size_pt = 72 .* size_inches
 fig = Figure(resolution = size_pt, fontsize = 14)
 
-hm_yticks = (collect(1:size(mat)[2]), gene_names[pam50[gene_sort]])
+hm_yticks = (collect(1:size(mat)[2]), gene_names[pam50_xACTB[gene_sort]])
 #gene_names[pam50][reverse(sortperm(assignments(gene_centroids)))])
 fig[2,2] = Axis(fig, width = 850, yticks = hm_yticks, 
     )
