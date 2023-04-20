@@ -36,7 +36,7 @@ struct GDC_data
     cols::Array
 end 
 function GDC_data(inputfile::String; log_transform=false)
-    tpm, cases, gnames = load_GDC_data(inputfile;log_transform=log_transform)
+    tpm, cases, gnames, labels = load_GDC_data(inputfile;log_transform=log_transform)
     return GDC_data(tpm, cases, gnames)
 end
 function load_GDC_data(infile; log_transform = false)
@@ -44,7 +44,12 @@ function load_GDC_data(infile; log_transform = false)
     tpm_data = inf["data"][:,:]
     case_ids = inf["rows"][:]
     gene_names = inf["cols"][:] 
-    labels = inf["labels"][:]
+    if in("labels", keys(inf))
+        labels = inf["labels"][:]
+    else 
+        labels = zeros(length(case_ids))
+    end 
+
     close(inf)
     if log_transform
         tpm_data = log10.(tpm_data .+1 )
