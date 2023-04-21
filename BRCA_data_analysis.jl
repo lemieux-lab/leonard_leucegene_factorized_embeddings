@@ -3,131 +3,114 @@ include("tcga_data_processing.jl")
 include("gene_signatures.jl")
 include("embeddings.jl")
 using StatsBase
+using Clustering
 # load in expression data and project id data 
-tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_BRCA_TPM_hv_subset_PAM_50.h5")
+tpm_data, case_ids, gene_names, labels  = load_GDC_data("Data/DATA/GDC_processed/TCGA_BRCA_TPM_lab.h5", log_transform = true)
 
 pam50_genes = [split(gene_name,"_")[1] for gene_name in readlines("Data/DATA/GDC_processed/PAM_50_2009.csv")]
 pam50 = findall([in(gene, pam50_genes) for gene in gene_names])
 # split RRM2 
 #ACTB_id = findall(gene_names .== "ACTB")
 #ACTB = tpm_data[:,ACTB_id]
-pam50_xACTB= setdiff(pam50,ACTB_id) 
+#pam50_xACTB= setdiff(pam50,ACTB_id) 
 # heat map of pam50 expression in TCGA breast cancer 
-mat = tpm_data[sortperm(labels),pam50_xACTB]
-# sort by kmeans clustering 
-kn=4
-gene_centroids = kmeans(mat,kn)
-patient_centroids = [Int(floor(mean(findall(sort(labels) .== l)))) for l in unique(sort(labels))]
-num_labels = [Dict([(k,v) for (v,k) in enumerate(unique(sort(labels)))])[lab] for lab in sort(labels)]
-# sort by absolute expression
-gene_sort = sortperm(assignments(gene_centroids))
-mat = mat[:,gene_sort]
+mat = tpm_data[sortperm(labels),pam50]
 
-size_inches = (15, 12)
-size_pt = 72 .* size_inches
-fig = Figure(resolution = size_pt, fontsize = 14)
 
-hm_yticks = (collect(1:size(mat)[2]), gene_names[pam50_xACTB[gene_sort]])
-#gene_names[pam50][reverse(sortperm(assignments(gene_centroids)))])
-fig[2,2] = Axis(fig, width = 850, yticks = hm_yticks, 
-    )
-fig[1,2] = Axis(fig, title ="Heatmap Pam 50 expression in TCGA Breast cancer data.", 
-    xticks = (patient_centroids, unique(sort(labels))),
-    height = 25,
-    backgroundcolor = :transparent,
-        leftspinevisible = false,
-        rightspinevisible = false,
-        bottomspinevisible = false,
-        topspinevisible = false,
-        #xticklabelsvisible = false, 
-        yticklabelsvisible = false,
-        xgridcolor = :transparent,
-        ygridcolor = :transparent,
-        #xminorticksvisible = false,
-        yminorticksvisible = false,
-        #xticksvisible = false,
-        yticksvisible = false,
-        xautolimitmargin = (0.0,0.0),
-        yautolimitmargin = (0.0,0.0))
-bp = barplot!(fig[1,2], [1 for i in 1:5],[StatsBase.countmap(labels)[l] for l in sort(unique(labels))], 
-        stack = collect(1:5), color = collect(1:5), direction = :x)
-hm_main = heatmap!(fig[2,2], mat)
+function plot_heatmap(mat, pam50, gene_names,  labels, outfile; kn=4)
+    # sort by kmeans clustering 
+    gene_centroids = kmeans(mat,kn)
+    patient_centroids = [Int(floor(mean(findall(sort(labels) .== l)))) for l in unique(sort(labels))]
+    num_labels = [Dict([(k,v) for (v,k) in enumerate(unique(sort(labels)))])[lab] for lab in sort(labels)]
+    # sort by absolute expression
+    gene_sort = sortperm(assignments(gene_centroids))
+    mat = mat[:,gene_sort]
+    size_inches = (20, 15)
+    size_pt = 72 .* size_inches
+    fig = Figure(resolution = size_pt, fontsize = 14)
 
-fig        
-fig[2,1] = Axis(fig, #title ="Heatmap Pam 50 expression in TCGA Breast cancer data.", 
-        #yticks = (gene_centroids, unique(sort(labels))),
-        ylabel = "cluster assignment by k-means", 
+    hm_yticks = (collect(1:size(mat)[2]), gene_names[pam50[gene_sort]])
+    #gene_names[pam50][reverse(sortperm(assignments(gene_centroids)))])
+    fig[2,2] = Axis(fig, width = 1200, yticks = hm_yticks, xlabel = "Patient ID",
+        )
+    fig[1,2] = Axis(fig, title ="Pam 50 expression in TCGA Breast cancer data heatmap.", 
+        xticks = (patient_centroids, unique(sort(labels))),
+        height = 25,
         backgroundcolor = :transparent,
             leftspinevisible = false,
             rightspinevisible = false,
             bottomspinevisible = false,
             topspinevisible = false,
-            xticklabelsvisible = false, 
+            #xticklabelsvisible = false, 
             yticklabelsvisible = false,
             xgridcolor = :transparent,
             ygridcolor = :transparent,
-            xminorticksvisible = false,
+            #xminorticksvisible = false,
             yminorticksvisible = false,
-            xticksvisible = false,
+            #xticksvisible = false,
             yticksvisible = false,
             xautolimitmargin = (0.0,0.0),
             yautolimitmargin = (0.0,0.0))
-counts(gene_centroids)
-bp = barplot!(fig[2,1], [1 for i in 1:kn],counts(gene_centroids), 
-stack = collect(1:kn), color = collect(1:kn), direction = :y)
-fig
-fig[3,2] = Axis(fig, yticks = ([1],["ACTB"]), height = 15)
-hm_ACTB = heatmap!(fig[3,2], ACTB)
-fig
-Colorbar(fig[2,3], hm_main)
-Colorbar(fig[3,3], hm_ACTB)
-fig
-CairoMakie.save("RES/BRCA/hm_tcga_brca_subtypes_by_pam_genes.png",fig)
+    bp = barplot!(fig[1,2], [1 for i in 1:5],[StatsBase.countmap(labels)[l] for l in sort(unique(labels))], 
+            stack = collect(1:5), color = collect(1:5), direction = :x)
+    hm_main = heatmap!(fig[2,2], mat)
+    fig[2,1] = Axis(fig, #title ="Heatmap Pam 50 expression in TCGA Breast cancer data.", 
+            #yticks = (gene_centroids, unique(sort(labels))),
+            ylabel = "cluster assignment by k-means", 
+            backgroundcolor = :transparent,
+                leftspinevisible = false,
+                rightspinevisible = false,
+                bottomspinevisible = false,
+                topspinevisible = false,
+                xticklabelsvisible = false, 
+                yticklabelsvisible = false,
+                xgridcolor = :transparent,
+                ygridcolor = :transparent,
+                xminorticksvisible = false,
+                yminorticksvisible = false,
+                xticksvisible = false,
+                yticksvisible = false,
+                xautolimitmargin = (0.0,0.0),
+                yautolimitmargin = (0.0,0.0))
+    counts(gene_centroids)
+    bp = barplot!(fig[2,1], [1 for i in 1:kn],counts(gene_centroids), 
+    stack = collect(1:kn), color = collect(1:kn), direction = :y)
+    Colorbar(fig[2,3], hm_main)
+    CairoMakie.save("$outfile.png",fig)
 
-# scrambled heatmap
-fig3= Figure(resolution = size_pt, fontsize = 14)
-fig3[1,1]=Axis(fig3,
-yticks = (collect(1:length(pam50)), gene_names[pam50]), 
-xlabel = "patient ID",
-ylabel = "PAM50 gene ",
-title = "Heatmap Pam 50 expression in TCGA Breast cancer data. (no processing)")
-hm_scrambled = heatmap!(fig3[1,1],tpm_data[:,pam50])
-Colorbar(fig3[:,2], hm_scrambled)
-Colorbar(fig[3,3], hm_scrambled)
-fig3
-CairoMakie.save("RES/BRCA/hm_tcga_brca_subtypes_by_pam_genes_scrambled.png",fig3)
+    # scrambled heatmap
+    fig3= Figure(resolution = size_pt, fontsize = 14)
+    fig3[1,1]=Axis(fig3,
+    yticks = (collect(1:length(pam50)), gene_names[pam50]), 
+    xlabel = "patient ID",
+    ylabel = "PAM50 gene ",
+    title = "Heatmap Pam 50 expression in TCGA Breast cancer data. (no processing)")
+    hm_scrambled = heatmap!(fig3[1,1],tpm_data[:,pam50])
+    Colorbar(fig3[:,2], hm_scrambled)
+    Colorbar(fig[3,3], hm_scrambled)
+    #fig3
+    CairoMakie.save("$(outfile)_scrambled.png",fig3)
+end
+plot_heatmap(mat, pam50, gene_names, labels,  "RES/BRCA/hm_tcga_brca_subtypes_by_pam_genes";kn=5)
 
-# clustering 
-using Clustering
-mat
+targets = label_binarizer(labels)
+X = mat 
+folds = split_train_test(X, targets) 
+accs = []
+l = size(X)[2]
+for (foldn, fold) in enumerate(folds)
+    train_x = gpu(fold["train_x"]')
+    train_y = gpu(fold["train_y"]')
+    test_x = gpu(fold["test_x"]')
+    test_y = gpu(fold["test_y"]')
 
-PAM50_raw = readlines("PAM50.csv")
-PAM50_genes = []
-ALT_names = []
-for elem in PAM50_raw
-    if elem != "" 
-    println(elem)
-    if occursin("(", elem) 
-        alt = split(elem, "(")[2][1:end-1]
-        elem = split(elem, "(")[1]
-    elseif occursin("/", elem) 
-        alt = split(elem, "/")[2]
-        elem = split(elem, "/")[1]
-    else 
-        alt = elem 
-    end 
-    push!(ALT_names, alt)
-    push!(PAM50_genes, elem)
-    end
-end 
-PAM50_df = DataFrame(:gene_name=>PAM50_genes, :alt_name=>ALT_names)
-CSV.write("Data/DATA/GDC_processed/PAM50_genes_processed.csv", PAM50_df)
-# isolate PAM50 
-
-pam50 = findall([in(gene, PAM50_df.gene_name) for gene in gene_names])
-pam50_alt = findall([in(gene, PAM50_df.alt_name) for gene in gene_names])
-pam50 = union(pam50, pam50_alt)
-
+    model = train_logreg(train_x, train_y, nepochs = 1000)
+    println("Length $l  Fold $foldn Train : ", accuracy(model, train_x, train_y))
+    println("Length $l  Fold $foldn Test  : ", accuracy(model, test_x, test_y))
+    push!(accs, accuracy(model, test_x, test_y))
+end
+## generate 2D-patient embedding using subtype-assoc-FE
+## generate 2D-gene embedding using subtype-assoc-FE 
 
 ## FE on BRCA data
 FEpath1d = "RES/EMBEDDINGS/embeddings_2023-03-06T14:26:15.605/FE_946ce7ced263b76223ef0"
