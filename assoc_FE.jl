@@ -47,44 +47,5 @@ tcga_prediction_dnn_res = validate(dnn_params, tcga_prediction;nfolds = dnn_para
 X = tcga_prediction.data
 targets = label_binarizer(tcga_prediction.targets)
 ## performs cross-validation with model on cancer data 
-folds = split_train_test(X, targets, nfolds = 5)
-batchsize = 500
-train_x = folds[1]["train_x"]';
-train_y = folds[1]["train_y"]';
-train_x[]
-nsamples = size(train_y)[2]
-nminibatches = Int(floor(nsamples/ batchsize))
-model = build(dnn_params)
-sum([sum(abs2, p) for p in Flux.params(model.model)])
-lossf = model.lossf
-nepochs = 500
-size(train_x)
-iter = 1
-cursor = (iter -1)  % nminibatches + 1 
-mb_ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, nsamples))
-train_x
-X_, Y_ = gpu(train_x[:,mb_ids]), gpu(train_y[:,mb_ids])
 
-loss_val = lossf(model, X_, Y_)
-ps = Flux.params(model.model)
-gs = gradient(ps) do
-    lossf(model,train_x, train_y)
-end
-Flux.update!(model.opt, ps, gs)
-println(accuracy(train_y, model.model(train_x)))
-
-for iter in 1:nepochs
-    cursor = (iter -1)  % nminibatches + 1 
-    mb_ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, nsamples))
-    X_, Y_ = train_x[:, mb_ids], train_y[:,mb_ids]
-    
-    loss_val = lossf(model, X_, Y_)
-    ps = Flux.params(model.model)
-    gs = gradient(ps) do
-        lossf(model,train_x, train_y)
-    end
-    Flux.update!(model.opt, ps, gs)
-    println(accuracy(train_y, model.model(train_x)))
-end 
-accuracy(train_y, model.model(train_x))
     

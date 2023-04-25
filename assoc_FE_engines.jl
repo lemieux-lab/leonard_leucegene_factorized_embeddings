@@ -52,7 +52,7 @@ function train!(model::dnn, fold; nepochs = 1000, batchsize=500)
             lossf(model,X_, Y_)
         end
         Flux.update!(model.opt, ps, gs)
-        println(accuracy(gpu(train_y), model.model(gpu(train_x))))
+        # println(accuracy(gpu(train_y), model.model(gpu(train_x))))
     end 
     return accuracy(gpu(train_y), model.model(gpu(train_x)))
 end 
