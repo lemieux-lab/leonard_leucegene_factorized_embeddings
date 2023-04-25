@@ -34,10 +34,11 @@ struct GDC_data
     data::Matrix
     rows::Array 
     cols::Array
+    targets::Array
 end 
 function GDC_data(inputfile::String; log_transform=false)
     tpm, cases, gnames, labels = load_GDC_data(inputfile;log_transform=log_transform)
-    return GDC_data(tpm, cases, gnames)
+    return GDC_data(tpm, cases, gnames, labels)
 end
 function load_GDC_data(infile; log_transform = false)
     inf = h5open(infile, "r")

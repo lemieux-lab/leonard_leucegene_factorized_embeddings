@@ -38,16 +38,17 @@ function train_DNN(X, Y; nepochs = 1000)
     return model
 end 
 
+
 function train_logreg(X, Y; nepochs = 1000)
-    model = gpu(Dense(size(X)[1], size(Y)[1], identity))
+    model = gpu(Dense(size(X)[1], size(Y)[1], sigmoid))
     opt = Flux.ADAM(1e-2)
     for e in 1:nepochs
         ps = Flux.params(model)
-        l = Flux.logitcrossentropy(model(X), Y)
+        l = Flux.mse(model(X), Y)
         # l = Flux.Losses.mse(model(X), target)
         gs = gradient(ps) do
             #Flux.Losses.mse(model(X), target)
-            Flux.logitcrossentropy(model(X), Y)
+            Flux.mse(model(X), Y)
         end
         Flux.update!(opt, ps, gs)
         # println(accuracy(model, X, Y))

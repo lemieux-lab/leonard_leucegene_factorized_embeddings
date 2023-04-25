@@ -21,7 +21,6 @@ function plot_heatmap(mat, pam50, gene_names,  labels, outfile; kn=4)
     # sort by kmeans clustering 
     gene_centroids = kmeans(mat,kn)
     patient_centroids = [Int(floor(mean(findall(sort(labels) .== l)))) for l in unique(sort(labels))]
-    num_labels = [Dict([(k,v) for (v,k) in enumerate(unique(sort(labels)))])[lab] for lab in sort(labels)]
     # sort by absolute expression
     gene_sort = sortperm(assignments(gene_centroids))
     mat = mat[:,gene_sort]
@@ -95,8 +94,10 @@ plot_heatmap(mat, pam50, gene_names, labels,  "RES/BRCA/hm_tcga_brca_subtypes_by
 
 targets = label_binarizer(labels)
 X = mat 
-folds = split_train_test(X, targets) 
+folds = split_train_test(X, targets, nfolds = 10) 
 accs = []
+truth = []
+preds = []
 l = size(X)[2]
 for (foldn, fold) in enumerate(folds)
     train_x = gpu(fold["train_x"]')
@@ -108,7 +109,33 @@ for (foldn, fold) in enumerate(folds)
     println("Length $l  Fold $foldn Train : ", accuracy(model, train_x, train_y))
     println("Length $l  Fold $foldn Test  : ", accuracy(model, test_x, test_y))
     push!(accs, accuracy(model, test_x, test_y))
+    push!(truth, vec(mapslices(argmax, fold["test_y"],dims = 2)))
+    push!(preds, vec(mapslices(argmax, cpu(model(test_x)), dims = 1)))
+end 
+num_labels = [Dict([(k,v) for (v,k) in enumerate(unique(sort(labels)))])[lab] for lab in sort(labels)]
+label_decoder = Dict([(k,v) for (k,v) in enumerate(unique(labels))])
+truth_l = vcat(truth...)
+preds_l = vcat(preds...) 
+nclasses = length(label_decoder)
+CM = zeros(nclasses, nclasses )
+for i in 1:nclasses
+    for j in 1:nclasses
+        CM[i,j] = sum((truth_l .== i) .&& (preds_l .== j)) 
+    end
 end
+## confusion matrix 
+CM
+log_reg_acc = mean(truth_l .== preds_l)
+fig = Figure(resolution = (14,14).*72, fontsize = 14)
+fig[1,1] = Axis(fig, xlabel = "True labels", ylabel = "Predicted labels",
+title = "Confusion Matrix, PAM50 subtype identification using Logistic regression prediction on TCGA-BRCA with PAM50 genes.\n accuracy = $(round(log_reg_acc * 100, digits = 3))%",
+yticks = (collect(1:nclasses), unique(labels)),
+xticks = (collect(1:nclasses), unique(labels)))
+heatmap!(fig[1,1], CM)
+CairoMakie.save("RES/BRCA/CM_log_reg_pam50.png", fig)
+println(CM)
+
+
 ## generate 2D-patient embedding using subtype-assoc-FE
 ## generate 2D-gene embedding using subtype-assoc-FE 
 

@@ -8,31 +8,12 @@ using Random
 
 include("data_preprocessing.jl")
 include("utils.jl")
-struct Params
-    nepochs::Int64
-    tr::Float64
-    wd::Float64 
-    emb_size_1::Int64
-    emb_size_2::Int64 
-    emb_size_3::Int64
-    hl1_size::Int64
-    hl2_size::Int64
-    modelid::String
-    model_outdir::String
-    insize::Int64
-    nsamples::Int64
-    set::String
-    clip::Bool
 
-    function Params(input_data::DataFE, cf, outdir;
-        nepochs=10_000, tr=1e-3, wd=1e-3,emb_size_1 =17, emb_size_2=50,emb_size_3=25, hl1=50,hl2=10, 
-        clip=true)
-        modelid = "FE_$(bytes2hex(sha256("$(now())"))[1:Int(floor(end/3))])"
-        model_outdir = "$(outdir)/$(modelid)"
-        mkdir(model_outdir)
-        return new(nepochs, tr, wd, emb_size_1, emb_size_2, emb_size_3, hl1, hl2, modelid, model_outdir, length(input_data.factor_2), length(input_data.factor_1), input_data.name, clip)
-    end
-end
+struct logistic_regression
+    model::Flux.Dense
+    opt
+    lossf
+end 
 
 struct FE_model
     net::Flux.Chain
@@ -100,42 +81,7 @@ function Base.getindex(model::FE_model, i::Int; embed_type::Symbol = :patient)
         model.embed_1.weight[:, i]  
     end 
 end 
-function FE_model(factor_1_size::Int, factor_2_size::Int, params::Params)
-    emb_size_1 = params.emb_size_1
-    emb_size_2 = params.emb_size_2
-    a = emb_size_1 + emb_size_2 
-    b, c = params.hl1_size, params.hl2_size 
-    emb_layer_1 = gpu(Flux.Embedding(factor_1_size, emb_size_1))
-    emb_layer_2 = gpu(Flux.Embedding(factor_2_size, emb_size_2))
-    hl1 = gpu(Flux.Dense(a, b, relu))
-    hl2 = gpu(Flux.Dense(b, c, relu))
-    outpl = gpu(Flux.Dense(c, 1, identity))
-    net = gpu(Flux.Chain(
-        Flux.Parallel(vcat, emb_layer_1, emb_layer_2),
-        hl1, hl2, outpl,
-        vec))
-    return FE_model(net, emb_layer_1, emb_layer_2, hl1, hl2, outpl)
-end
 
-function FE_model_3_factors(factor_1_size::Int, factor_2_size::Int, factor_3_size::Int, params::Params)
-    emb_size_1 = params.emb_size_1
-    emb_size_2 = params.emb_size_2
-    emb_size_3 = params.emb_size_3
-    a = emb_size_1 + emb_size_2 + emb_size_3
-    b, c = params.hl1_size, params.hl2_size 
-    emb_layer_1 = gpu(Flux.Embedding(factor_1_size, emb_size_1))
-    emb_layer_2 = gpu(Flux.Embedding(factor_2_size, emb_size_2))
-    emb_layer_3 = gpu(Flux.Embedding(factor_3_size, emb_size_3))
-    
-    hl1 = gpu(Flux.Dense(a, b, relu))
-    hl2 = gpu(Flux.Dense(b, c, relu))
-    outpl = gpu(Flux.Dense(c, 1, identity))
-    net = gpu(Flux.Chain(
-        Flux.Parallel(vcat, emb_layer_1, emb_layer_2, emb_layer_3),
-        hl1, hl2, outpl,
-        vec))
-    return FE_model_3_factors(net, emb_layer_1, emb_layer_2, emb_layer_3, hl1, hl2, outpl)
-end
 
 function cp(model::FE_model)
     emb_layer_1 = cpu(model.embed_1)
@@ -286,70 +232,6 @@ function train!(X, Y, dump_cb, params, model::FE_model) # todo: sys. call back
 end 
 
 
-function train_SGD_inf_loop!(X, Y, dump_cb, params::Params, model::FE_model; batchsize = 20_000, restart::Int=0) # todo: sys. call back
-    opt = Flux.ADAM(params.tr)
-    nminibatches = Int(floor(length(Y) / batchsize))
-    shuffled_ids = shuffle(collect(1:length(Y)))
-    max_iter = params.nepochs 
-    iter = 1 
-    while iter < max_iter || max_iter < 0   
-        ps = Flux.params(model.net)
-        cursor = (iter -1)  % nminibatches + 1
-        # if cursor == 1 
-        #     shuffled_ids = shuffle(collect(1:length(Y))) # very inefficient
-        # end 
-        mb_ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, length(Y)))
-        ids = shuffled_ids[mb_ids]
-        X_, Y_ = (X[1][ids],X[2][ids]), Y[ids]
-        loss_val =  loss(X_, Y_, model, params.wd)
-        dump_cb(model, params, iter + restart, loss_val)
-        
-        gs = gradient(ps) do 
-            loss(X_, Y_, model, params.wd)
-        end
-        Flux.update!(opt,ps, gs)
-        iter = iter + 1
-    end 
-end 
-
-function train_SGD!(X, Y, dump_cb, params::Params, model::FE_model_3_factors; batchsize = 20_000, restart::Int=0) # todo: sys. call back
-    tr_loss = []
-    tr_epochs = []
-    opt = Flux.ADAM(params.tr)
-    nminibatches = Int(floor(length(Y) / batchsize))
-    shuffled_ids = shuffle(collect(1:length(Y)))
-    for iter in ProgressBar(1:params.nepochs)
-        ps = Flux.params(model.net)
-        cursor = (iter -1)  % nminibatches + 1
-        if cursor == 1 
-            shuffled_ids = shuffle(collect(1:length(Y))) # very inefficient
-        end 
-        mb_ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, length(Y)))
-        ids = shuffled_ids[mb_ids]
-        X_, Y_ = (X[1][ids],X[2][ids],X[3][ids]), Y[ids]
-        
-        dump_cb(model, params, iter + restart)
-        
-        gs = gradient(ps) do 
-            loss(X_, Y_, model, params.wd)
-        end
-        if params.clip 
-            g_norm = norm(gs)
-            c = 0.5
-            g_norm > c && (gs = gs ./ g_norm .* c)
-            # if g_norm > c
-            #     println("EPOCH: $(iter) gradient norm $(g_norm)")
-            #     println("EPOCH: $(iter) new grad norm $(norm(gs ./ g_norm .* c))")
-            # end 
-        end 
-
-        Flux.update!(opt,ps, gs)
-        push!(tr_loss, loss(X_, Y_, model, params.wd))
-        push!(tr_epochs, Int(floor((iter - 1)  / nminibatches)) + 1)
-    end 
-    dump_cb(model, params, params.nepochs + restart)
-    return tr_loss, tr_epochs  # patient_embed, model, final_acc
-end 
 
 function train_SGD!(X, Y, dump_cb, params, model::FE_model; batchsize = 20_000, restart::Int=0) # todo: sys. call back
     tr_loss = []
