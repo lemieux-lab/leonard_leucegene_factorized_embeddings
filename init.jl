@@ -18,12 +18,11 @@ using JuBox
 using CUDA
 
 function set_dirs()
-    session_id = "embeddings_$(now())"
+    session_id = "$(now())"
     outpath = "./RES/EMBEDDINGS/$session_id"
     mkdir(outpath)
-    model_params_list = []
 
-    return outpath, session_id,  model_params_list
+    return outpath, session_id
 end
 
 # end 
