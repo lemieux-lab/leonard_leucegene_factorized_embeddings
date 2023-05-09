@@ -36,11 +36,11 @@ struct GDC_data
     cols::Array
     targets::Array
 end 
-function GDC_data(inputfile::String; log_transform=false)
-    tpm, cases, gnames, labels = load_GDC_data(inputfile;log_transform=log_transform)
+function GDC_data(inputfile::String; log_transform=false, shuffled = true)
+    tpm, cases, gnames, labels = load_GDC_data(inputfile;log_transform=log_transform, shuffled = shuffled)
     return GDC_data(tpm, cases, gnames, labels)
 end
-function load_GDC_data(infile; log_transform = false)
+function load_GDC_data(infile; log_transform = false, shuffled= true)
     inf = h5open(infile, "r")
     tpm_data = inf["data"][:,:]
     case_ids = inf["rows"][:]
@@ -55,7 +55,13 @@ function load_GDC_data(infile; log_transform = false)
     if log_transform
         tpm_data = log10.(tpm_data .+1 )
     end 
-    return tpm_data, case_ids, gene_names, labels 
+    
+    ids = collect(1:length(case_ids))
+    shuffled_ids = shuffle(ids)
+    if shuffled
+        ids = shuffled_ids
+    end 
+    return tpm_data[ids,:], case_ids[ids], gene_names, labels[ids]
 end   
 
 

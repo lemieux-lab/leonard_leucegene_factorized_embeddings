@@ -139,9 +139,9 @@ end
 function build(model_params)
     # picks right confiration model for given params
     if model_params["model_type"] == "linear"
-        chain = gpu(Dense(model_params["insize"] , model_params["outsize"], sigmoid))
+        chain = gpu(Dense(model_params["insize"] , model_params["outsize"],identity))
         opt = Flux.ADAM(model_params["lr"])
-        lossf = mse_l2
+        lossf = crossentropy_l2
         model = logistic_regression(chain, opt, lossf)
     elseif model_params["model_type"] == "dnn"
         chain = gpu(Chain(Dense(model_params["insize"] , model_params["hl_size"], relu),
@@ -202,7 +202,7 @@ function train!(model::assoc_AE, fold; nepochs = 1000, batchsize=500, wd = 1e-6)
     train_y = fold["train_y"]';
     nsamples = size(train_y)[2]
     nminibatches = Int(floor(nsamples/ batchsize))
-    for iter in 1:nepochs
+    for iter in ProgressBar(1:nepochs)
         cursor = (iter -1)  % nminibatches + 1
         mb_ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, nsamples))
         X_, Y_ = gpu(train_x[:,mb_ids]), gpu(train_y[:,mb_ids])
@@ -222,8 +222,9 @@ function train!(model::assoc_AE, fold; nepochs = 1000, batchsize=500, wd = 1e-6)
         end
         Flux.update!(model.clf.opt, ps, gs)
         clf_acc = accuracy(Y_, model.clf.model(X_))
-        println("$iter, AE-loss: $ae_loss, AE-cor: $ae_cor, CLF-loss: $clf_loss, CLF-acc: $clf_acc")
+        #println("$iter\t AE-loss: $ae_loss\t AE-cor: $ae_cor\t CLF-loss: $clf_loss\t CLF-acc: $clf_acc")
     end
+    return accuracy(gpu(train_y), model.clf.model(gpu(train_x)))
 end 
 
 function train!(model::assoc_FE, fold; nepochs = 1000, batchsize=500, wd = 1e-6)
@@ -283,7 +284,7 @@ function train!(model::dnn, fold; nepochs = 1000, batchsize=500, wd = 1e-6)
     return accuracy(gpu(train_y), model.model(gpu(train_x)))
 end 
 
-function train!(model::logistic_regression, fold; nepochs = 1000, wd = 1e-6)
+function train!(model::logistic_regression, fold; batchsize = 500, nepochs = 1000, wd = 1e-6)
     train_x = gpu(fold["train_x"]');
     train_y = gpu(fold["train_y"]');
     lossf = model.lossf
@@ -298,6 +299,12 @@ function train!(model::logistic_regression, fold; nepochs = 1000, wd = 1e-6)
     end 
     return accuracy(train_y, model.model(train_x))
 end 
+function test(model::assoc_AE, fold)
+    test_x = gpu(fold["test_x"]');
+    test_y = gpu(fold["test_y"]');
+    return cpu(test_y), cpu(model.clf.model(test_x)) 
+end 
+
 function test(model::logistic_regression, fold)
     test_x = gpu(fold["test_x"]');
     test_y = gpu(fold["test_y"]');
