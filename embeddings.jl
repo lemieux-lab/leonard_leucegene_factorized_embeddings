@@ -9,37 +9,6 @@ using Random
 include("data_preprocessing.jl")
 include("utils.jl")
 
-struct logistic_regression
-    model::Flux.Dense
-    opt
-    lossf
-end 
-
-struct FE_model
-    net::Flux.Chain
-    embed_1::Flux.Embedding
-    embed_2::Flux.Embedding
-    hl1::Flux.Dense
-    hl2::Flux.Dense
-    outpl::Flux.Dense
-end
-
-function FE_model(params::Dict)
-    emb_size_1 = params["emb_size_1"]
-    emb_size_2 = params["emb_size_2"]
-    a = emb_size_1 + emb_size_2 
-    b, c = params["fe_hl1_size"], params["fe_hl2_size"] 
-    emb_layer_1 = gpu(Flux.Embedding(params["nsamples"], emb_size_1))
-    emb_layer_2 = gpu(Flux.Embedding(params["ngenes"], emb_size_2))
-    hl1 = gpu(Flux.Dense(a, b, relu))
-    hl2 = gpu(Flux.Dense(b, c, relu))
-    outpl = gpu(Flux.Dense(c, 1, identity))
-    net = gpu(Flux.Chain(
-        Flux.Parallel(vcat, emb_layer_1, emb_layer_2),
-        hl1, hl2, outpl,
-        vec))
-    FE_model(net, emb_layer_1, emb_layer_2, hl1, hl2, outpl)
-end 
 
 struct FE_model_dual
     FE_model::FE_model 

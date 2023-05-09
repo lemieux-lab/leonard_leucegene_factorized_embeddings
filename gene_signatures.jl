@@ -69,7 +69,7 @@ function split_train_test(X::Matrix, targets; nfolds = 5)
         train_y = targets[tr_ids, :]
         test_x = X[tst_ids, :]
         test_y = targets[tst_ids, :]
-        folds[i] = Dict("train_x"=> train_x, "train_y" =>train_y, "test_x"=> test_x, "test_y" => test_y )
+        folds[i] = Dict("train_x"=> train_x, "train_ids"=>tr_ids, "train_y" =>train_y, "test_x"=> test_x, "test_ids" =>tst_ids,"test_y" => test_y )
     end
     return folds  
 end 
