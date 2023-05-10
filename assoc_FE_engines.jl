@@ -202,6 +202,7 @@ function train!(model::assoc_AE, fold; nepochs = 1000, batchsize=500, wd = 1e-6)
     train_y = fold["train_y"]';
     nsamples = size(train_y)[2]
     nminibatches = Int(floor(nsamples/ batchsize))
+    learning_curve = []
     for iter in ProgressBar(1:nepochs)
         cursor = (iter -1)  % nminibatches + 1
         mb_ids = collect((cursor -1) * batchsize + 1: min(cursor * batchsize, nsamples))
@@ -222,9 +223,11 @@ function train!(model::assoc_AE, fold; nepochs = 1000, batchsize=500, wd = 1e-6)
         end
         Flux.update!(model.clf.opt, ps, gs)
         clf_acc = accuracy(Y_, model.clf.model(X_))
+        push!(learning_curve, (ae_loss, ae_cor, clf_loss, clf_acc))
+        # save model (bson) every epoch if specified 
         #println("$iter\t AE-loss: $ae_loss\t AE-cor: $ae_cor\t CLF-loss: $clf_loss\t CLF-acc: $clf_acc")
     end
-    return accuracy(gpu(train_y), model.clf.model(gpu(train_x)))
+    return learning_curve
 end 
 
 function train!(model::assoc_FE, fold; nepochs = 1000, batchsize=500, wd = 1e-6)
@@ -342,6 +345,10 @@ function validate(model_params, cancer_data::GDC_data; nfolds = 10)
         push!(pred_labs_list, pred_labs)
         println("train: ", train_metrics)
         println("test: ", accuracy(true_labs, pred_labs))
+        # post run 
+        # save model
+        # save 2d embed svg
+        # training curves svg, csv 
     end
     ### bootstrap results get 95% conf. interval 
     low_ci, med, upp_ci = bootstrap(accuracy, true_labs_list, pred_labs_list) 
@@ -353,7 +360,7 @@ function validate(model_params, cancer_data::GDC_data; nfolds = 10)
     model_params["cv_acc_low_ci"] = low_ci
     model_params["cv_acc_median"] = med
     model_params["cv_acc_upp_ci"] = upp_ci
-    
+    # param dict 
     return ret_dict
 end 
 
